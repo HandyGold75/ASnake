@@ -1,23 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
+	"io"
+	"os"
 	"slices"
-	"strings"
 
 	"golang.org/x/term"
 )
 
 type (
-	errFrames struct{ XOutOfBounds, YOutOfBounds, NoRowsFound error }
+	errFrames struct{ XOutOfBounds, YOutOfBounds, NoRowsFound, InvalidSTInOut error }
 
 	Row []int8
 
 	Frame struct {
 		Rows                   []Row
 		CurX, CurY, MaxX, MaxY int
-		CharMap                map[int8]string
+		CharMap                map[int8][]byte
 	}
 
 	colors struct{ Reset, Gray, Red, Green, Yellow, Blue, Purple, Cyan, White string }
@@ -25,26 +26,28 @@ type (
 
 var (
 	ErrFrames = errFrames{
-		XOutOfBounds: errors.New("y is out of bounds"),
-		YOutOfBounds: errors.New("y is out of bounds"),
-		NoRowsFound:  errors.New("no rows found"),
+		XOutOfBounds:   errors.New("x is out of bounds"),
+		YOutOfBounds:   errors.New("y is out of bounds"),
+		NoRowsFound:    errors.New("no rows found"),
+		InvalidSTInOut: errors.New("stdin/ stdout should be a terminal"),
 	}
 
-	Colors = colors{
-		Reset:  "\033[0m",
-		Gray:   "\033[30m",
-		Red:    "\033[31m",
-		Green:  "\033[32m",
-		Yellow: "\033[33m",
-		Blue:   "\033[34m",
-		Purple: "\033[35m",
-		Cyan:   "\033[36m",
-		White:  "\033[97m",
-	}
+	Terminal = func() *term.Terminal {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			panic(ErrFrames.InvalidSTInOut)
+		}
+
+		screen := struct {
+			io.Reader
+			io.Writer
+		}{os.Stdin, os.Stdout}
+
+		return term.NewTerminal(screen, "")
+	}()
 )
 
-func NewFrame(maxX int, maxY int, charMap map[int8]string) (*Frame, error) {
-	x, y, err := term.GetSize(0)
+func NewFrame(maxX int, maxY int, charMap map[int8][]byte) (*Frame, error) {
+	x, y, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return &Frame{}, err
 	}
@@ -82,7 +85,7 @@ func (f *Frame) SetCol(x int, state int8) error {
 		return ErrFrames.XOutOfBounds
 	}
 
-	for i, _ := range f.Rows {
+	for i := range f.Rows {
 		f.Rows[i] = slices.Replace(f.Rows[i], x, x+1, state)
 	}
 
@@ -120,7 +123,7 @@ func (f *Frame) Clear() {
 }
 
 func (f *Frame) Reload() error {
-	x, y, err := term.GetSize(0)
+	x, y, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return err
 	}
@@ -136,37 +139,38 @@ func (f *Frame) Reload() error {
 }
 
 func (f *Frame) Draw() error {
-	fmt.Print("\033[2J")
-	fmt.Print("\033[0;0H")
-
-	lines := []string{}
+	lines := [][]byte{}
 	for _, row := range f.Rows {
-		line := ""
+		line := []byte{}
 		for _, col := range row {
 			char, ok := f.CharMap[col]
 			if ok {
-				line += char
+				line = append(line, char...)
 				continue
 			}
 
 			char, ok = f.CharMap[-1]
 			if ok {
-				line += char
+				line = append(line, char...)
 				continue
 			}
 
 			if col != 0 {
-				line += "█"
+				line = append(line, []byte("██")...)
 				continue
 			}
 
-			line += " "
+			line = append(line, []byte("  ")...)
 		}
-
 		lines = append(lines, line)
 	}
 
-	fmt.Print(strings.Join(lines, "\r\n"))
+	if _, err := Terminal.Write([]byte("\033[2J\033[0;0H")); err != nil { // Clear screen & Posistion cursor
+		return err
+	}
+	if _, err := Terminal.Write(bytes.Join(lines, []byte("\r\n"))); err != nil {
+		return err
+	}
 
 	return nil
 }

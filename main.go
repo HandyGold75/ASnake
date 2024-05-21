@@ -41,7 +41,7 @@ var (
 	plusOneActive = false
 
 	originalTrm = func() *term.State {
-		oldState, err := term.MakeRaw(0)
+		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 		if err != nil {
 			panic(err)
 		}
@@ -81,7 +81,7 @@ func statsBar(gs *gameState) {
 }
 
 func listenKeys(gs *gameState) {
-	defer term.Restore(0, originalTrm)
+	defer term.Restore(int(os.Stdin.Fd()), originalTrm)
 
 	for !Stopping {
 		in := make([]byte, 3)
@@ -171,14 +171,16 @@ func spawnPea(f *Frame, gs *gameState) {
 }
 
 func setup() (*Frame, *gameState, error) {
-	f, err := NewFrame(1000, 1000, map[int8]string{
-		GameObjects.Default:  Colors.Purple + "██" + Colors.Reset,
-		GameObjects.Empty:    "  ",
-		GameObjects.Wall:     Colors.Gray + "██" + Colors.Reset,
-		GameObjects.Player:   "██",
-		GameObjects.Pea:      Colors.Yellow + "██" + Colors.Reset,
-		GameObjects.GameOver: Colors.Red + "██" + Colors.Reset,
-		GameObjects.PlusOne:  Colors.Green + "██" + Colors.Reset,
+	ObjectResetBytes := append([]byte("██"), Terminal.Escape.Reset...)
+
+	f, err := NewFrame(1000, 1000, map[int8][]byte{
+		GameObjects.Default:  append(Terminal.Escape.Magenta, ObjectResetBytes...),
+		GameObjects.Empty:    []byte("  "),
+		GameObjects.Wall:     append(Terminal.Escape.Black, ObjectResetBytes...), // "\033[30m" for Gray
+		GameObjects.Player:   []byte("██"),
+		GameObjects.Pea:      append(Terminal.Escape.Yellow, ObjectResetBytes...),
+		GameObjects.GameOver: append(Terminal.Escape.Red, ObjectResetBytes...),
+		GameObjects.PlusOne:  append(Terminal.Escape.Green, ObjectResetBytes...),
 	})
 	if err != nil {
 		return &Frame{}, &gameState{}, err
@@ -259,23 +261,32 @@ func handleArgs(gs *gameState) bool {
 	for _, help := range []string{"-h", "--help", "help"} {
 		if slices.Contains(os.Args, help) {
 			fmt.Printf("\r\nAnother game of Snake" +
-				"\r\n\r\nMinimal recomended resolution: 66x16" +
-				"\r\n\r\nArgs:" +
-				"\r\n\t-ps --player-speed [0-10]" +
-				"\r\n\t\tAjust the player speed (default: 8)\r\n" +
-				"\r\n\t-sd --spawn-delay [0-X]" +
-				"\r\n\t\tAjust the pea spawn delay in seconds (default: 5)\r\n" +
-				"\r\n\t-sl --spawn-limit [0-X]" +
-				"\r\n\t\tAjust the pea spawn limit (default: 3)\r\n" +
-				"\r\n\t-sc --spawn-count [0-X]" +
-				"\r\n\t\tAjust the starting pea count (default: 1)\r\n" +
-				"\r\n\t-dr --dynamic-resizing" +
-				"\r\n\t\tEnable dynamic resizing during gameplay, expirmental! (default: off)" +
-				"\r\n\t\tRequires more resources to run smoothly." +
-				"\r\n\t\tWhen downscaling peas will be despawned when out off bounds." +
-				"\r\n\t\tWhen downscaling the player will be teleported to the new edge when out off bounds, this causes a game over if teleported inside itself.\r\n" +
-				"\r\n",
-			)
+				"\r\n " +
+				"\r\nMeant to run under Linux inside of bash." +
+				"\r\nIn some circumstances, the game can flicker a lot." +
+				"\r\n " +
+				"\r\nMinimal recommended resolution: 66x16" +
+				"\r\n " +
+				"\r\nArgs:" +
+				"\r\n    -ps --player-speed [0-10]" +
+				"\r\n        Adjust the player speed (default: 8)" +
+				"\r\n " +
+				"\r\n    -sd --spawn-delay [0-X]" +
+				"\r\n        Adjust the pea spawn delay in seconds (default: 5)" +
+				"\r\n " +
+				"\r\n    -sl --spawn-limit [0-X]" +
+				"\r\n        Adjust the pea spawn limit (default: 3)" +
+				"\r\n " +
+				"\r\n    -sc --spawn-count [0-X]" +
+				"\r\n        Adjust the starting pea count (default: 1)" +
+				"\r\n " +
+				"\r\n    -dr --dynamic-resizing" +
+				"\r\n        Enable dynamic resizing during gameplay, experimental! (default: off)" +
+				"\r\n        Requires more resources to run smoothly." +
+				"\r\n        When downscaling peas will be despawned when out of bounds." +
+				"\r\n        When downscaling the player will be teleported to the new edge when out of bounds, this causes a game over if teleported inside itself." +
+				"\r\n\r\n")
+
 			return false
 		}
 	}
@@ -327,7 +338,7 @@ func handleArgs(gs *gameState) bool {
 }
 
 func main() {
-	defer term.Restore(0, originalTrm)
+	defer term.Restore(int(os.Stdin.Fd()), originalTrm)
 
 	f, gs, err := setup()
 	if err != nil {
