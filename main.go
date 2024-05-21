@@ -280,7 +280,7 @@ func handleArgs(gs *gameState) bool {
 				"\r\n" +
 				"\r\nMinimal recommended play area: 32x 14y" +
 				"\r\nLag won't impact gameplay while under 100ms." +
-				"\r\nIf lag goes above 100ms please decrease the play area you madlad." +
+				"\r\nIf the lag goes above 100ms please decrease the play area you madlad." +
 				"\r\n" +
 				"\r\nArgs:" +
 				"\r\n    -ps --player-speed [0-10]" +

@@ -1,9 +1,10 @@
 # Another game of Snake
 
 Meant to run under Linux inside of bash.
-In some circumstances, the game can flicker a lot.
 
-Minimal recommended resolution: 66x16
+Minimal recommended play area: 32x 14y
+Lag won't impact gameplay while under 100ms.
+If the lag goes above 100ms please decrease the play area you madlad.
 
 Args:
 
@@ -19,10 +20,4 @@ Args:
 
     -sc --spawn-count [0-X]
         Adjust the starting pea count (default: 1)
-
-    -dr --dynamic-resizing
-        Enable dynamic resizing during gameplay, experimental! (default: off)
-        Requires more resources to run smoothly.
-        When downscaling peas will be despawned when out of bounds.
-        When downscaling the player will be teleported to the new edge when out of bounds, this causes a game over if teleported inside itself.
 ```
