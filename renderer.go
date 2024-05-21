@@ -19,6 +19,7 @@ type (
 		Rows                   []Row
 		CurX, CurY, MaxX, MaxY int
 		CharMap                map[int8][]byte
+		DynamicReloadCallback  func(f *Frame)
 	}
 
 	colors struct{ Reset, Gray, Red, Green, Yellow, Blue, Purple, Cyan, White string }
@@ -59,7 +60,14 @@ func NewFrame(maxX int, maxY int, charMap map[int8][]byte) (*Frame, error) {
 		rows = append(rows, make(Row, x))
 	}
 
-	return &Frame{Rows: rows, CurX: x - 1, CurY: y - 1, MaxX: maxX, MaxY: maxY, CharMap: charMap}, nil
+	return &Frame{
+		Rows:    rows,
+		CurX:    x - 1,
+		CurY:    y - 1,
+		MaxX:    maxX,
+		MaxY:    maxY,
+		CharMap: charMap,
+	}, nil
 }
 
 func (f *Frame) SetRow(y int, state int8) error {
@@ -139,6 +147,28 @@ func (f *Frame) Reload() error {
 }
 
 func (f *Frame) Draw() error {
+	if f.DynamicReloadCallback != nil {
+		x, y, err := term.GetSize(int(os.Stdin.Fd()))
+		if err != nil {
+			return err
+		}
+
+		if f.CurX != min(int(x/2)-1, f.MaxX) || f.CurY != min(y-2, f.MaxY) {
+			f.CurX = min(int(x/2)-1, f.MaxX)
+			f.CurY = min(y-2, f.MaxY)
+
+			f.Rows = []Row{}
+			for i := 0; i <= f.CurY; i++ {
+				f.Rows = append(f.Rows, make(Row, f.CurX+1))
+			}
+
+			if _, err := Terminal.Write([]byte("\033[2J")); err != nil {
+				return err
+			}
+			f.DynamicReloadCallback(f)
+		}
+	}
+
 	lines := [][]byte{}
 	for _, row := range f.Rows {
 		line := []byte{}
@@ -165,10 +195,7 @@ func (f *Frame) Draw() error {
 		lines = append(lines, line)
 	}
 
-	if _, err := Terminal.Write([]byte("\033[2J\033[0;0H")); err != nil { // Clear screen & Posistion cursor
-		return err
-	}
-	if _, err := Terminal.Write(bytes.Join(lines, []byte("\r\n"))); err != nil {
+	if _, err := Terminal.Write(append([]byte("\033[0;0H"), bytes.Join(lines, []byte("\r\n"))...)); err != nil {
 		return err
 	}
 
