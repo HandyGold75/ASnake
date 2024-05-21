@@ -32,8 +32,7 @@ type (
 )
 
 var (
-	Stopping        = false
-	DynamicResizing = false
+	Stopping = false
 
 	MinFrameTime = 100
 
@@ -73,11 +72,20 @@ var (
 	}
 )
 
-func statsBar(gs *gameState) {
+func statsBar(f *Frame, gs *gameState, t time.Time) {
 	timeDiff := time.Now().Sub(startTime)
 	timeStr := fmt.Sprintf("%02d:%02d:%02d", int(timeDiff.Hours()), int(timeDiff.Minutes())%60, int(timeDiff.Seconds())%60)
 
-	fmt.Printf("\r\nTime Alive: %v	Peas Eaten: %v", timeStr, len(gs.TailCrds))
+	msg := fmt.Sprintf(
+		"\r\nSurvived: %v   Lenght: %v   Size: %vx %vy   Lag: %v",
+		timeStr, len(gs.TailCrds)+1, f.CurX, f.CurY, time.Now().Sub(t).Truncate(time.Microsecond).String(),
+	)
+
+	if len([]rune(msg)) > f.CurX*2 {
+		fmt.Printf("%."+strconv.Itoa(f.CurX*2)+"s...", msg)
+	} else {
+		fmt.Printf("%."+strconv.Itoa(f.CurX*2)+"s", msg)
+	}
 }
 
 func listenKeys(gs *gameState) {
@@ -107,15 +115,13 @@ func listenKeys(gs *gameState) {
 
 func updatePlayer(f *Frame, gs *gameState) {
 	oldCords := gs.PlayerCrd
-
-	switch gs.PlayerDir {
-	case "up":
+	if gs.PlayerDir == "up" {
 		gs.PlayerCrd.Y -= 1
-	case "right":
+	} else if gs.PlayerDir == "right" {
 		gs.PlayerCrd.X += 1
-	case "down":
+	} else if gs.PlayerDir == "down" {
 		gs.PlayerCrd.Y += 1
-	case "left":
+	} else if gs.PlayerDir == "left" {
 		gs.PlayerCrd.X -= 1
 	}
 	gs.PlayerCurDir = gs.PlayerDir
@@ -131,8 +137,8 @@ func updatePlayer(f *Frame, gs *gameState) {
 	}
 
 	val, err := f.GetColRow(gs.PlayerCrd.X, gs.PlayerCrd.Y)
-	if err != nil {
-		panic(err)
+	if err != nil { // Player most likely downscaled extremly fast, ignore critical error
+		return
 	}
 	if val == GameObjects.Player {
 		Stopping = true
@@ -141,6 +147,10 @@ func updatePlayer(f *Frame, gs *gameState) {
 	}
 
 	if val == GameObjects.Pea {
+		gs.PeaCrds = slices.DeleteFunc(gs.PeaCrds, func(cord Cord) bool {
+			return cord == Cord{gs.PlayerCrd.X, gs.PlayerCrd.Y}
+		})
+
 		gs.TailCrds = append(gs.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
 		plusOneActive = true
 		plusOneScreen(f)
@@ -158,9 +168,8 @@ func updatePlayer(f *Frame, gs *gameState) {
 }
 
 func spawnPea(f *Frame, gs *gameState) {
-	cord := Cord{}
-	for i := 1; i < 100; i++ {
-		cord = Cord{X: rand.IntN(f.CurX-1) + 1, Y: rand.IntN(f.CurY-1) + 1}
+	for i := 1; i < 10; i++ {
+		cord := Cord{X: rand.IntN(f.CurX-1) + 1, Y: rand.IntN(f.CurY-1) + 1}
 		val, _ := f.GetColRow(cord.X, cord.Y)
 		if val == GameObjects.Empty {
 			gs.PeaCrds = append(gs.PeaCrds, cord)
@@ -205,54 +214,59 @@ func setup() (*Frame, *gameState, error) {
 
 	f.SetColRow(gs.PlayerCrd.X, gs.PlayerCrd.Y, GameObjects.Player)
 
+	f.DynamicReloadCallback = func(f *Frame) {
+		f.SetColRow(gs.PlayerCrd.X, gs.PlayerCrd.Y, GameObjects.Player)
+
+		for _, cord := range gs.TailCrds {
+			f.SetColRow(cord.X, cord.Y, GameObjects.Player)
+		}
+
+		for _, cord := range gs.PeaCrds {
+			f.SetColRow(cord.X, cord.Y, GameObjects.Pea)
+		}
+	}
+
 	go listenKeys(gs)
 
 	return f, gs, nil
 }
 
 func loop(f *Frame, gs *gameState) {
+	UpdateFramePlayer := max(1, 10-gs.PlayerSpeed)
+	UpdateFramePea := max(1, gs.PeaSpawnDelay*(1000/MinFrameTime))
+	UpdateFramePlusOne := max(1, gs.PlusOneDelay*(1000/MinFrameTime))
+
 	for i := 1; !Stopping; i++ {
 		t := time.Now()
 
-		if DynamicResizing {
-			f.Reload()
+		if plusOneActive && i%UpdateFramePlusOne == 0 {
+			plusOneActive = false
+			plusOneScreen(f)
+		}
 
+		if i%UpdateFramePlayer == 0 {
 			f.SetCol(0, GameObjects.Wall)
 			f.SetRow(0, GameObjects.Wall)
 			f.SetCol(f.CurX, GameObjects.Wall)
 			f.SetRow(f.CurY, GameObjects.Wall)
 
-			f.SetColRow(gs.PlayerCrd.X, gs.PlayerCrd.Y, GameObjects.Player)
-			for _, cord := range gs.TailCrds {
-				f.SetColRow(cord.X, cord.Y, GameObjects.Player)
-			}
-
-			for _, cord := range gs.PeaCrds {
-				f.SetColRow(cord.X, cord.Y, GameObjects.Pea)
-			}
-		}
-
-		if plusOneActive && i%max(1, gs.PlusOneDelay*(1000/MinFrameTime)) == 0 {
-			plusOneActive = false
-			plusOneScreen(f)
-		}
-
-		if i%max(1, 10-gs.PlayerSpeed) == 0 {
 			updatePlayer(f, gs)
 		}
 
-		gs.PeaCrds = slices.DeleteFunc(gs.PeaCrds, func(cord Cord) bool {
-			val, err := f.GetColRow(cord.X, cord.Y)
-			return err != nil || val != GameObjects.Pea
-		})
+		if i%UpdateFramePea == 0 {
+			gs.PeaCrds = slices.DeleteFunc(gs.PeaCrds, func(cord Cord) bool {
+				val, err := f.GetColRow(cord.X, cord.Y)
+				return err != nil || val != GameObjects.Pea
+			})
 
-		if len(gs.PeaCrds) < gs.PeaSpawnLimit && i%max(1, gs.PeaSpawnDelay*(1000/MinFrameTime)) == 0 {
-			spawnPea(f, gs)
+			if len(gs.PeaCrds) < gs.PeaSpawnLimit {
+				spawnPea(f, gs)
+			}
 		}
 
 		f.Draw()
 
-		statsBar(gs)
+		statsBar(f, gs, t)
 		time.Sleep((time.Millisecond * time.Duration(MinFrameTime)) - time.Now().Sub(t))
 	}
 }
@@ -260,31 +274,26 @@ func loop(f *Frame, gs *gameState) {
 func handleArgs(gs *gameState) bool {
 	for _, help := range []string{"-h", "--help", "help"} {
 		if slices.Contains(os.Args, help) {
-			fmt.Printf("\r\nAnother game of Snake" +
-				"\r\n " +
+			fmt.Print("\r\nAnother game of Snake" +
+				"\r\n" +
 				"\r\nMeant to run under Linux inside of bash." +
-				"\r\nIn some circumstances, the game can flicker a lot." +
-				"\r\n " +
-				"\r\nMinimal recommended resolution: 66x16" +
-				"\r\n " +
+				"\r\n" +
+				"\r\nMinimal recommended play area: 32x 14y" +
+				"\r\nLag won't impact gameplay while under 100ms." +
+				"\r\nIf lag goes above 100ms please decrease the play area you madlad." +
+				"\r\n" +
 				"\r\nArgs:" +
 				"\r\n    -ps --player-speed [0-10]" +
 				"\r\n        Adjust the player speed (default: 8)" +
-				"\r\n " +
+				"\r\n" +
 				"\r\n    -sd --spawn-delay [0-X]" +
 				"\r\n        Adjust the pea spawn delay in seconds (default: 5)" +
-				"\r\n " +
+				"\r\n" +
 				"\r\n    -sl --spawn-limit [0-X]" +
 				"\r\n        Adjust the pea spawn limit (default: 3)" +
-				"\r\n " +
+				"\r\n" +
 				"\r\n    -sc --spawn-count [0-X]" +
 				"\r\n        Adjust the starting pea count (default: 1)" +
-				"\r\n " +
-				"\r\n    -dr --dynamic-resizing" +
-				"\r\n        Enable dynamic resizing during gameplay, experimental! (default: off)" +
-				"\r\n        Requires more resources to run smoothly." +
-				"\r\n        When downscaling peas will be despawned when out of bounds." +
-				"\r\n        When downscaling the player will be teleported to the new edge when out of bounds, this causes a game over if teleported inside itself." +
 				"\r\n\r\n")
 
 			return false
@@ -327,11 +336,6 @@ func handleArgs(gs *gameState) bool {
 			gs.PeaStartCount = v
 			continue
 		}
-
-		if arg == "-dr" || arg == "--dynamic-resizing" {
-			DynamicResizing = true
-			continue
-		}
 	}
 
 	return true
@@ -356,5 +360,5 @@ func main() {
 	f.Draw()
 	loop(f, gs)
 
-	fmt.Print("	")
+	fmt.Print("\033[0;0H\r\n" + string(f.CharMap[GameObjects.Wall]) + "  ")
 }
