@@ -1,10 +1,10 @@
 # Another game of Snake
 
-Meant to run under Linux inside of bash.
+Works with POSIX compliant terminals.
 
 Minimal recommended play area: 32x 14y
-Lag won't impact gameplay while under 100ms.
-If the lag goes above 100ms please decrease the play area you madlad.
+Delay won't impact gameplay while under 100ms.
+If the delay goes above 100ms please decrease the play area you madlad.
 
 Args:
 
