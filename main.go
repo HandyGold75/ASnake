@@ -15,16 +15,10 @@ type (
 	Cord struct{ X, Y int }
 
 	gameState struct {
-		PlayerCrd     Cord
-		PlayerDir     string
-		PlayerCurDir  string
-		PlayerSpeed   int
-		PeaSpawnDelay int
-		PeaSpawnLimit int
-		PeaStartCount int
-		PlusOneDelay  int
-		TailCrds      []Cord
-		PeaCrds       []Cord
+		PlayerCrd                                                              Cord
+		PlayerDir, PlayerCurDir                                                string
+		PlayerSpeed, PeaSpawnDelay, PeaSpawnLimit, PeaStartCount, PlusOneDelay int
+		TailCrds, PeaCrds                                                      []Cord
 	}
 
 	keyBinds    struct{ ESC, CTRL_C, CTRL_D, W, D, S, A, UP, RIGHT, DOWN, LEFT []byte }
@@ -76,10 +70,13 @@ func statsBar(f *Frame, gs *gameState, t time.Time) {
 	timeDiff := time.Now().Sub(startTime)
 	timeStr := fmt.Sprintf("%02d:%02d:%02d", int(timeDiff.Hours()), int(timeDiff.Minutes())%60, int(timeDiff.Seconds())%60)
 
-	msg := fmt.Sprintf(
-		"\r\nSurvived: %v   Lenght: %v   Size: %vx %vy   Lag: %v",
-		timeStr, len(gs.TailCrds)+1, f.CurX, f.CurY, time.Now().Sub(t).Truncate(time.Microsecond).String(),
-	)
+	delay := time.Now().Sub(t).Truncate(time.Microsecond)
+	delayColor := ""
+	if delay > time.Duration(MinFrameTime)*time.Millisecond {
+		delayColor = string(Terminal.Escape.Red)
+	}
+
+	msg := fmt.Sprintf("\r\nTime: %v   Peas: %v   Size: %vx %vy   Delay: %v ", timeStr, len(gs.TailCrds)+1, f.CurX, f.CurY, delayColor+delay.String()+string(Terminal.Escape.Reset))
 
 	if len([]rune(msg)) > f.CurX*2 {
 		fmt.Printf("%."+strconv.Itoa(f.CurX*2)+"s...", msg)
@@ -137,9 +134,10 @@ func updatePlayer(f *Frame, gs *gameState) {
 	}
 
 	val, err := f.GetColRow(gs.PlayerCrd.X, gs.PlayerCrd.Y)
-	if err != nil { // Player most likely downscaled extremly fast, ignore critical error
+	if err != nil { // Player most likely downscaled extremly fast, skip update as the current frame is unreliable.
 		return
 	}
+
 	if val == GameObjects.Player {
 		Stopping = true
 		failScreen(f)
@@ -185,7 +183,7 @@ func setup() (*Frame, *gameState, error) {
 	f, err := NewFrame(1000, 1000, map[int8][]byte{
 		GameObjects.Default:  append(Terminal.Escape.Magenta, ObjectResetBytes...),
 		GameObjects.Empty:    []byte("  "),
-		GameObjects.Wall:     append(Terminal.Escape.Black, ObjectResetBytes...), // "\033[30m" for Gray
+		GameObjects.Wall:     append(Terminal.Escape.Black, ObjectResetBytes...),
 		GameObjects.Player:   []byte("██"),
 		GameObjects.Pea:      append(Terminal.Escape.Yellow, ObjectResetBytes...),
 		GameObjects.GameOver: append(Terminal.Escape.Red, ObjectResetBytes...),
@@ -276,11 +274,11 @@ func handleArgs(gs *gameState) bool {
 		if slices.Contains(os.Args, help) {
 			fmt.Print("\r\nAnother game of Snake" +
 				"\r\n" +
-				"\r\nMeant to run under Linux inside of bash." +
+				"\r\nWorks with POSIX compliant terminals." +
 				"\r\n" +
 				"\r\nMinimal recommended play area: 32x 14y" +
-				"\r\nLag won't impact gameplay while under 100ms." +
-				"\r\nIf the lag goes above 100ms please decrease the play area you madlad." +
+				"\r\nDelay won't impact gameplay while under " + strconv.Itoa(MinFrameTime) + "ms." +
+				"\r\nIf the delay goes above " + strconv.Itoa(MinFrameTime) + "ms please decrease the play area you madlad." +
 				"\r\n" +
 				"\r\nArgs:" +
 				"\r\n    -ps --player-speed [0-10]" +
