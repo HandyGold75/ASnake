@@ -55,13 +55,12 @@ var (
 		menu.updateMenu("")
 	}
 
-	mainSelections   = []string{"Start", "Multiplayer", "Options", "Exit"}
+	mainSelections   = []string{"Start", "Options", "Exit"}
 	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count"}
 
 	currentSelection    = ""
 	availalbeSelections = mainSelections
 	selectionActions    = map[string]func(*Menu){
-		"Multiplayer": func(menu *Menu) {},
 		"Options": func(menu *Menu) {
 			currentSelection = ""
 			availalbeSelections = optionSelections
