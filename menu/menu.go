@@ -68,9 +68,9 @@ var (
 			menu.updateMenu("")
 		},
 		"Player Speed": func(menu *Menu) { settingSetter(menu, &gm.Config.PlayerSpeed, 11) },
-		"Spawn Delay":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnDelay, 999) },
-		"Spawn Limit":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnLimit, 999) },
-		"Spawn Count":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaStartCount, 999) },
+		"Spawn Delay":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnDelay, 1000) },
+		"Spawn Limit":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnLimit, 1000) },
+		"Spawn Count":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaStartCount, 1000) },
 	}
 )
 
