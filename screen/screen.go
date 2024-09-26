@@ -187,6 +187,7 @@ func (f *Screen) Draw() error {
 		}
 		lines = append(lines, line)
 	}
+	lines = append(lines, []byte{})
 
 	if _, err := f.Terminal.Write(append([]byte("\033[0;0H"), bytes.Join(lines, []byte("\r\n"))...)); err != nil {
 		return err
@@ -203,6 +204,18 @@ func (fh *screenHelper) RenderString(str string, offsetX, offsetY int, state int
 		}
 
 		fh.RenderCords(cords, offsetX, offsetY, state)
+		offsetX += 6
+	}
+}
+
+func (fh *screenHelper) RenderStringIf(str string, offsetX, offsetY int, state int8, set func(int8) bool) {
+	for _, r := range str {
+		cords, ok := charMap[unicode.ToUpper(r)]
+		if !ok {
+			continue
+		}
+
+		fh.RenderCordsIf(cords, offsetX, offsetY, state, set)
 		offsetX += 6
 	}
 }
