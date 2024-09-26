@@ -36,7 +36,7 @@ func main() {
 	}
 	originalTrm = oldState
 
-	gm, err := game.NewGame()
+	gm, err := game.NewGame(originalTrm)
 	if err != nil {
 		panic(err)
 	}
