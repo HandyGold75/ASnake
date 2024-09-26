@@ -67,7 +67,7 @@ var (
 			availalbeSelections = optionSelections
 			menu.updateMenu("")
 		},
-		"Player Speed": func(menu *Menu) { settingSetter(menu, &gm.Config.PlayerSpeed, 11) },
+		"Player Speed": func(menu *Menu) { settingSetter(menu, &gm.Config.PlayerSpeed, gm.Config.TargetTPS+1) },
 		"Spawn Delay":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnDelay, 1000) },
 		"Spawn Limit":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnLimit, 1000) },
 		"Spawn Count":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaStartCount, 1000) },
@@ -138,12 +138,12 @@ func NewMenu(gamePnt *game.Game) (*Menu, error) {
 }
 
 func (menu *Menu) statsBar() {
-	msg := fmt.Sprintf("\rSelected: %v   Size: %vx %vy", currentSelection, menu.Screen.CurX, menu.Screen.CurY)
+	msg := fmt.Sprintf("Selected: %v   Size: %vx %vy", currentSelection, menu.Screen.CurX, menu.Screen.CurY)
 
 	if len([]rune(msg)) > menu.Screen.CurX*2 {
-		fmt.Printf("\n\033[2K\r%."+strconv.Itoa(menu.Screen.CurX*2)+"s...", msg)
+		fmt.Printf("\033[2K\r%."+strconv.Itoa(menu.Screen.CurX*2)+"s...", msg)
 	} else {
-		fmt.Printf("\n\033[2K\r%."+strconv.Itoa(menu.Screen.CurX*2)+"s", msg)
+		fmt.Printf("\033[2K\r%."+strconv.Itoa(menu.Screen.CurX*2)+"s", msg)
 	}
 }
 
@@ -225,7 +225,7 @@ func (menu *Menu) updateMenu(dir string) {
 		menu.Screen.SetRow(i, menu.Objects.Background)
 	}
 
-	offsetX, offsetY := 2, 2
+	offsetX, offsetY := 1, 1
 	for _, item := range availalbeSelections {
 		if item == currentSelection {
 			menu.Screen.H.RenderString(item, offsetX, offsetY-(index*6), menu.Objects.Selected)
