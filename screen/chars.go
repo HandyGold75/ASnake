@@ -12,7 +12,7 @@ type (
 	chars struct {
 		A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z []Cord
 		Zero, One, Two, Three, For, Five, Six, Seven, Eight, Nine                    []Cord
-		Space, Plus                                                                  []Cord
+		Space, Plus, Slash, Dot                                                      []Cord
 	}
 )
 
@@ -278,6 +278,17 @@ var (
 			{X: 1, Y: 2}, {X: 2, Y: 2}, {X: 3, Y: 2},
 			{X: 2, Y: 3},
 		},
+		Slash: []Cord{
+			{X: 4, Y: 0},
+			{X: 3, Y: 1},
+			{X: 2, Y: 2},
+			{X: 1, Y: 3},
+			{X: 0, Y: 4},
+		},
+		Dot: []Cord{
+			{X: 1, Y: 3}, {X: 2, Y: 3},
+			{X: 1, Y: 4}, {X: 2, Y: 4},
+		},
 	}
 
 	charMap = map[rune][]Cord{
@@ -319,5 +330,7 @@ var (
 		'9': Chars.Nine,
 		' ': Chars.Space,
 		'+': Chars.Plus,
+		'/': Chars.Slash,
+		'.': Chars.Dot,
 	}
 )

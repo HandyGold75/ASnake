@@ -17,9 +17,14 @@ import (
 type (
 	Cord screen.Cord
 
-	keyBinds    struct{ ESC, P, CTRL_C, CTRL_D, Q, W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT []byte }
+	keyBinds struct {
+		ESC, P,
+		CTRL_C, CTRL_D, Q,
+		W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT []byte
+	}
 	gameObjects struct{ Default, Empty, Wall, PlusOne, Warning, Pea, Player int8 }
 	gameConfig  struct {
+		LockFPSToTPS                                                           bool
 		TargetTPS, TargetFPS                                                   int
 		PlayerSpeed, PeaSpawnDelay, PeaSpawnLimit, PeaStartCount, PlusOneDelay int
 	}
@@ -41,21 +46,23 @@ type (
 var (
 	stopping = false
 	paused   = false
-	trm      = &term.Terminal{}
+
+	originalTrm = &term.State{}
+	trm         = &term.Terminal{}
 
 	startTime     = time.Now()
 	plusOneActive = false
 
-	lockFPSToTPS = false
-	tpsTracker   = 0
-	fpsTracker   = 0
+	tpsTracker = 0
+	fpsTracker = 0
 )
 
-func NewGame() (*Game, error) {
+func NewGame(orgTrm *term.State) (*Game, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return &Game{}, errors.New("stdin/ stdout should be a terminal")
 	}
 
+	originalTrm = orgTrm
 	trm = term.NewTerminal(struct {
 		io.Reader
 		io.Writer
@@ -63,23 +70,11 @@ func NewGame() (*Game, error) {
 
 	game := &Game{
 		KeyBinds: keyBinds{
-			ESC:    []byte{27, 0, 0},
-			P:      []byte{112, 0, 0},
-			CTRL_C: []byte{3, 0, 0},
-			CTRL_D: []byte{4, 0, 0},
-			Q:      []byte{113, 0, 0},
-			W:      []byte{119, 0, 0},
-			D:      []byte{100, 0, 0},
-			S:      []byte{115, 0, 0},
-			A:      []byte{97, 0, 0},
-			K:      []byte{108, 0, 0},
-			L:      []byte{107, 0, 0},
-			J:      []byte{106, 0, 0},
-			H:      []byte{104, 0, 0},
-			UP:     []byte{27, 91, 65},
-			RIGHT:  []byte{27, 91, 67},
-			DOWN:   []byte{27, 91, 66},
-			LEFT:   []byte{27, 91, 68},
+			ESC: []byte{27, 0, 0}, P: []byte{112, 0, 0},
+			CTRL_C: []byte{3, 0, 0}, CTRL_D: []byte{4, 0, 0}, Q: []byte{113, 0, 0},
+			W: []byte{119, 0, 0}, D: []byte{100, 0, 0}, S: []byte{115, 0, 0}, A: []byte{97, 0, 0},
+			K: []byte{108, 0, 0}, L: []byte{107, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
+			UP: []byte{27, 91, 65}, RIGHT: []byte{27, 91, 67}, DOWN: []byte{27, 91, 66}, LEFT: []byte{27, 91, 68},
 		},
 		Objects: gameObjects{
 			Default: -1,
@@ -93,6 +88,7 @@ func NewGame() (*Game, error) {
 		Config: gameConfig{
 			TargetTPS:     30,
 			TargetFPS:     60,
+			LockFPSToTPS:  false,
 			PlayerSpeed:   24, // Player moves 1 tile every `TargetTPS-PlayerSpeed` updates.
 			PeaSpawnDelay: 5,
 			PeaSpawnLimit: 3,
@@ -154,7 +150,7 @@ func (game *Game) statsBar() {
 		tpsColor = string(trm.Escape.Red)
 	}
 	fpsColor := ""
-	if fpsTracker < game.Config.TargetFPS-1 {
+	if !game.Config.LockFPSToTPS && fpsTracker < game.Config.TargetFPS-(game.Config.TargetFPS/5) {
 		fpsColor = string(trm.Escape.Red)
 	}
 
@@ -265,8 +261,10 @@ func (game *Game) loop() {
 	updateFramePea := max(1, game.Config.PeaSpawnDelay*game.Config.TargetTPS)
 	updateFramePlusOne := max(1, game.Config.PlusOneDelay*game.Config.TargetTPS)
 
-	if !lockFPSToTPS {
+	if !game.Config.LockFPSToTPS {
 		go func() {
+			defer func() { stopping = true; term.Restore(int(os.Stdin.Fd()), originalTrm) }()
+
 			for !stopping {
 				t := time.Now()
 
@@ -288,7 +286,7 @@ func (game *Game) loop() {
 			tpsTracker = int(time.Second/time.Now().Sub(t)) + 1
 			startTime = startTime.Add(time.Now().Sub(t))
 
-			if lockFPSToTPS {
+			if game.Config.LockFPSToTPS {
 				fpsTracker = tpsTracker
 				game.statsBar()
 			}
@@ -322,7 +320,7 @@ func (game *Game) loop() {
 			}
 		}
 
-		if lockFPSToTPS {
+		if game.Config.LockFPSToTPS {
 			game.Screen.Draw()
 
 			time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Now().Sub(t))

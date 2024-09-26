@@ -9,13 +9,18 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/term"
 )
 
 type (
-	keyBinds    struct{ RETURN, ESC, CTRL_C, CTRL_D, Q, W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT []byte }
+	keyBinds struct {
+		RETURN, ESC, CTRL_C, CTRL_D, Q                            []byte
+		W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT             []byte
+		Zero, One, Two, Three, For, Five, Six, Seven, Eight, Nine []byte
+	}
 	menuObjects struct{ Default, Empty, Background, Text, Selected, Warning int8 }
 
 	Menu struct {
@@ -30,10 +35,16 @@ var (
 	trm  = &term.Terminal{}
 	gm   = &game.Game{}
 
+	ip1, ip2, ip3, ip4 = 0, 0, 0, 0
+
 	inputCallback          = func([]byte) bool { return false }
+	backSelections         = []string{}
 	optionSelectedCallback = func(string) {}
 
-	settingSetter = func(menu *Menu, setting *int, maxValue int) {
+	lastNumberInput   = time.Now()
+	numberInputBuffer = []string{}
+
+	settingSetter = func(menu *Menu, setting *int, maxValue int, backSels []string) {
 		currentSelection = strconv.Itoa(*setting)
 
 		s := make([]string, maxValue)
@@ -43,6 +54,7 @@ var (
 		availalbeSelections = s
 
 		inputCallback = menu.SettingInput
+		backSelections = backSels
 		optionSelectedCallback = func(value string) {
 			out, err := strconv.Atoi(value)
 			if err != nil {
@@ -56,21 +68,59 @@ var (
 	}
 
 	mainSelections   = []string{"Start", "Multiplayer", "Options", "Exit"}
-	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count"}
+	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count", "Low Performance"}
+	mpSelections     = []string{"IP 1/4", "IP 2/4", "IP 3/4", "IP 4/4", "Connect"}
 
 	currentSelection    = ""
 	availalbeSelections = mainSelections
 	selectionActions    = map[string]func(*Menu){
-		"Multiplayer": func(menu *Menu) {},
+		"Multiplayer": func(menu *Menu) {
+			currentSelection = ""
+			availalbeSelections = mpSelections
+			menu.updateMenu("")
+		},
+		"IP 1/4": func(menu *Menu) { settingSetter(menu, &ip1, 256, mpSelections) },
+		"IP 2/4": func(menu *Menu) { settingSetter(menu, &ip2, 256, mpSelections) },
+		"IP 3/4": func(menu *Menu) { settingSetter(menu, &ip3, 256, mpSelections) },
+		"IP 4/4": func(menu *Menu) { settingSetter(menu, &ip4, 256, mpSelections) },
+		"Connect": func(menu *Menu) {
+			availalbeSelections = []string{"Confirm"}
+
+			inputCallback = menu.SettingInput
+			backSelections = mpSelections
+			optionSelectedCallback = func(value string) {
+				if value != "Confirm" {
+					return
+				}
+				// exec some networking or something
+			}
+
+			menu.updateMenu("")
+			menu.Screen.H.RenderString(fmt.Sprintf("%d.%d.%d.%d", ip1, ip2, ip3, ip4), 2, 8, menu.Objects.Warning)
+		},
+
 		"Options": func(menu *Menu) {
 			currentSelection = ""
 			availalbeSelections = optionSelections
 			menu.updateMenu("")
 		},
-		"Player Speed": func(menu *Menu) { settingSetter(menu, &gm.Config.PlayerSpeed, gm.Config.TargetTPS+1) },
-		"Spawn Delay":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnDelay, 1000) },
-		"Spawn Limit":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnLimit, 1000) },
-		"Spawn Count":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaStartCount, 1000) },
+		"Player Speed": func(menu *Menu) { settingSetter(menu, &gm.Config.PlayerSpeed, gm.Config.TargetTPS+1, optionSelections) },
+		"Spawn Delay":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnDelay, 100000, optionSelections) },
+		"Spawn Limit":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaSpawnLimit, 100000, optionSelections) },
+		"Spawn Count":  func(menu *Menu) { settingSetter(menu, &gm.Config.PeaStartCount, 100000, optionSelections) },
+		"Low Performance": func(menu *Menu) {
+			if gm.Config.LockFPSToTPS {
+				currentSelection = "Yes"
+			} else {
+				currentSelection = "No"
+			}
+			availalbeSelections = []string{"Yes", "No"}
+
+			inputCallback = menu.SettingInput
+			optionSelectedCallback = func(value string) { gm.Config.LockFPSToTPS = value == "Yes" }
+
+			menu.updateMenu("")
+		},
 	}
 )
 
@@ -88,22 +138,11 @@ func NewMenu(gamePnt *game.Game) (*Menu, error) {
 	menu := &Menu{
 		KeyBinds: keyBinds{
 			RETURN: []byte{13, 0, 0},
-			ESC:    []byte{27, 0, 0},
-			CTRL_C: []byte{3, 0, 0},
-			CTRL_D: []byte{4, 0, 0},
-			W:      []byte{119, 0, 0},
-			Q:      []byte{113, 0, 0},
-			D:      []byte{100, 0, 0},
-			S:      []byte{115, 0, 0},
-			A:      []byte{97, 0, 0},
-			K:      []byte{108, 0, 0},
-			L:      []byte{107, 0, 0},
-			J:      []byte{106, 0, 0},
-			H:      []byte{104, 0, 0},
-			UP:     []byte{27, 91, 65},
-			RIGHT:  []byte{27, 91, 67},
-			DOWN:   []byte{27, 91, 66},
-			LEFT:   []byte{27, 91, 68},
+			ESC:    []byte{27, 0, 0}, CTRL_C: []byte{3, 0, 0}, CTRL_D: []byte{4, 0, 0}, Q: []byte{113, 0, 0},
+			W: []byte{119, 0, 0}, D: []byte{100, 0, 0}, S: []byte{115, 0, 0}, A: []byte{97, 0, 0},
+			K: []byte{108, 0, 0}, L: []byte{107, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
+			UP: []byte{27, 91, 65}, RIGHT: []byte{27, 91, 67}, DOWN: []byte{27, 91, 66}, LEFT: []byte{27, 91, 68},
+			Zero: []byte{48, 0, 0}, One: []byte{49, 0, 0}, Two: []byte{50, 0, 0}, Three: []byte{51, 0, 0}, For: []byte{52, 0, 0}, Five: []byte{53, 0, 0}, Six: []byte{54, 0, 0}, Seven: []byte{55, 0, 0}, Eight: []byte{56, 0, 0}, Nine: []byte{57, 0, 0},
 		},
 		Objects: menuObjects{
 			Default:    -1,
@@ -150,8 +189,11 @@ func (menu *Menu) statsBar() {
 func (menu *Menu) SettingInput(in []byte) bool {
 	if slices.Equal(in, menu.KeyBinds.CTRL_C) || slices.Equal(in, menu.KeyBinds.CTRL_D) || slices.Equal(in, menu.KeyBinds.ESC) || slices.Equal(in, menu.KeyBinds.Q) {
 		stop <- "Exit"
+		return true
+
 	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.UP) {
-		menu.updateMenu("up")
+		return false
+
 	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
 		optionSelectedCallback(currentSelection)
 
@@ -159,11 +201,14 @@ func (menu *Menu) SettingInput(in []byte) bool {
 		optionSelectedCallback = func(string) {}
 
 		currentSelection = ""
-		availalbeSelections = optionSelections
+		availalbeSelections = backSelections
 		menu.updateMenu("")
 
+		return true
+
 	} else if slices.Equal(in, menu.KeyBinds.S) || slices.Equal(in, menu.KeyBinds.J) || slices.Equal(in, menu.KeyBinds.DOWN) {
-		menu.updateMenu("down")
+		return false
+
 	} else if slices.Equal(in, menu.KeyBinds.A) || slices.Equal(in, menu.KeyBinds.H) || slices.Equal(in, menu.KeyBinds.LEFT) {
 		optionSelectedCallback(currentSelection)
 
@@ -171,10 +216,35 @@ func (menu *Menu) SettingInput(in []byte) bool {
 		optionSelectedCallback = func(string) {}
 
 		currentSelection = ""
-		availalbeSelections = optionSelections
+		availalbeSelections = backSelections
 		menu.updateMenu("")
+
+		return true
+
 	}
 
+	for i, bind := range [][]byte{menu.KeyBinds.Zero, menu.KeyBinds.One, menu.KeyBinds.Two, menu.KeyBinds.Three, menu.KeyBinds.For, menu.KeyBinds.Five, menu.KeyBinds.Six, menu.KeyBinds.Seven, menu.KeyBinds.Eight, menu.KeyBinds.Nine} {
+		if slices.Equal(in, bind) {
+			if time.Now().After(lastNumberInput.Add(time.Second)) {
+				if len(numberInputBuffer) > 1 {
+					numberInputBuffer = []string{}
+				}
+			}
+
+			lastNumberInput = time.Now()
+			numberInputBuffer = append(numberInputBuffer, strconv.Itoa(i))
+
+			if slices.Index(availalbeSelections, strings.Join(numberInputBuffer, "")) == -1 {
+				lastNumberInput = time.Now().Add(-time.Hour)
+				numberInputBuffer = []string{strconv.Itoa(i)}
+			}
+
+			currentSelection = strings.Join(numberInputBuffer, "")
+			menu.updateMenu("")
+
+			return true
+		}
+	}
 	return true
 }
 
@@ -245,7 +315,7 @@ func (menu *Menu) TestText() {
 	for i := 0; i < 10; i++ {
 		menu.Screen.H.RenderString(strconv.Itoa(i), i*6, 12, menu.Objects.Text)
 	}
-	menu.Screen.H.RenderString("+", 0, 18, menu.Objects.Text)
+	menu.Screen.H.RenderString("+/.", 0, 18, menu.Objects.Text)
 
 	menu.Screen.Draw()
 }
