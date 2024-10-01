@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 )
 
 type (
@@ -33,7 +34,7 @@ func (sv *Server) Run() error {
 		return err
 	}
 	defer listener.Close()
-	fmt.Println("Listening on: ")
+	fmt.Println("Listening on: " + sv.IP + ":" + strconv.FormatUint(uint64(sv.Port), 10))
 
 	for {
 		con, err := listener.Accept()
@@ -54,10 +55,14 @@ func (sv *Server) handleConnection(con net.Conn) {
 	if err != nil {
 		fmt.Printf("Server | Error: %v\r\n", err)
 		con.Close()
+		return
 	}
+	msg = strings.ReplaceAll(msg, "\n", "")
 	fmt.Printf("%s | Receive: %v\r\n", con.RemoteAddr().String(), msg)
 	if string(msg) != "Join" {
+		fmt.Printf("Server | Error: '%v'\r\n", msg)
 		con.Close()
+		return
 	}
 
 	fmt.Printf("%s | Send: %v\r\n", con.RemoteAddr().String(), "Accept")
@@ -80,7 +85,7 @@ func (sv *Server) handleConnection(con net.Conn) {
 func main() {
 	go NewServer("127.0.0.1", 17530).Run()
 
-	someClient()
+	go someClient()
 
 	<-make(chan bool)
 }

@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
+	"time"
 )
 
 func someClient() {
@@ -26,10 +28,17 @@ func someClient() {
 		return
 	}
 
-	msg, err := bufio.NewReader(conn).ReadString('\n') // err EOF
-	if err != nil {
-		fmt.Printf("Client | Error: %v\r\n", err)
-		return
+	reader := bufio.NewReader(conn)
+	for {
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
+			fmt.Printf("Client | Error (%v): %v\r\n", msg, err)
+			break
+		}
+		fmt.Printf("Client | Received: %v\r\n", msg)
+		time.Sleep(time.Second)
 	}
-	fmt.Printf("Client | Received: %v\r\n", msg)
 }
