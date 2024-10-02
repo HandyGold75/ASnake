@@ -12,7 +12,7 @@ type (
 	Server struct {
 		IP    string
 		Port  uint16
-		Pools []Pool
+		Pools []*Pool
 	}
 )
 
@@ -24,7 +24,7 @@ func NewServer(ip string, port uint16) *Server {
 	return &Server{
 		IP:    ip,
 		Port:  port,
-		Pools: []Pool{},
+		Pools: []*Pool{},
 	}
 }
 
@@ -58,34 +58,34 @@ func (sv *Server) handleConnection(con net.Conn) {
 		return
 	}
 	msg = strings.ReplaceAll(msg, "\n", "")
-	fmt.Printf("%s | Receive: %v\r\n", con.RemoteAddr().String(), msg)
 	if string(msg) != "Join" {
-		fmt.Printf("Server | Error: '%v'\r\n", msg)
+		fmt.Printf("Server | Error: %v\r\n", msg)
 		con.Close()
 		return
 	}
 
-	fmt.Printf("%s | Send: %v\r\n", con.RemoteAddr().String(), "Accept")
 	con.Write([]byte("Accept\n"))
 
 	for _, pool := range sv.Pools {
-		if len(pool.Clients) >= maxPlayers && pool.Status == "waiting" {
+		if len(pool.Clients) >= maxPlayers || pool.Status != "waiting" {
 			continue
 		}
 
-		pool.Clients = append(pool.Clients, *NewClient(con))
+		pool.Clients = append(pool.Clients, NewClient(con))
 		return
 	}
 
-	pool := NewPool()
-	pool.Clients = append(pool.Clients, *NewClient(con))
-	sv.Pools = append(sv.Pools, *pool)
+	pool, err := NewPool()
+	if err != nil {
+		fmt.Printf("Server | Error: %v\r\n", err)
+		con.Close()
+		return
+	}
+
+	pool.Clients = append(pool.Clients, NewClient(con))
+	sv.Pools = append(sv.Pools, pool)
 }
 
 func main() {
-	go NewServer("127.0.0.1", 17530).Run()
-
-	go someClient()
-
-	<-make(chan bool)
+	NewServer("127.0.0.1", 17530).Run()
 }

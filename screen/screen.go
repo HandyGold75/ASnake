@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	row []int8
+	row []uint8
 
 	screenHelper struct {
 		f *Screen
@@ -20,7 +20,7 @@ type (
 	Screen struct {
 		Rows                   []row
 		CurX, CurY, MaxX, MaxY int
-		CharMap                map[int8][]byte
+		CharMap                map[uint8][]byte
 		Terminal               *term.Terminal
 		OnResizeCallback       func(f *Screen)
 		H                      screenHelper
@@ -39,7 +39,7 @@ var (
 	}
 )
 
-func NewScreen(maxX, maxY int, charMap map[int8][]byte, terminal *term.Terminal) (*Screen, error) {
+func NewScreen(maxX, maxY int, charMap map[uint8][]byte, terminal *term.Terminal) (*Screen, error) {
 	x, y, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return &Screen{}, err
@@ -55,15 +55,16 @@ func NewScreen(maxX, maxY int, charMap map[int8][]byte, terminal *term.Terminal)
 	f := &Screen{
 		Rows: rows,
 		CurX: x - 1, CurY: y - 1, MaxX: maxX, MaxY: maxY,
-		CharMap:  charMap,
-		Terminal: terminal,
+		CharMap:          charMap,
+		Terminal:         terminal,
+		OnResizeCallback: func(f *Screen) {},
 	}
 	f.H.f = f
 
 	return f, nil
 }
 
-func (f *Screen) SetRow(y int, state int8) error {
+func (f *Screen) SetRow(y int, state uint8) error {
 	if y > len(f.Rows)-1 || y < 0 {
 		return ErrScreens.XOutOfBounds
 	}
@@ -78,7 +79,7 @@ func (f *Screen) SetRow(y int, state int8) error {
 	return nil
 }
 
-func (f *Screen) SetCol(x int, state int8) error {
+func (f *Screen) SetCol(x int, state uint8) error {
 	if 0 > len(f.Rows)-1 {
 		return ErrScreens.NoRowsFound
 	}
@@ -93,7 +94,7 @@ func (f *Screen) SetCol(x int, state int8) error {
 	return nil
 }
 
-func (f *Screen) SetColRow(x, y int, state int8) error {
+func (f *Screen) SetColRow(x, y int, state uint8) error {
 	if y > len(f.Rows)-1 || y < 0 {
 		return ErrScreens.YOutOfBounds
 	}
@@ -106,12 +107,12 @@ func (f *Screen) SetColRow(x, y int, state int8) error {
 	return nil
 }
 
-func (f *Screen) GetColRow(x, y int) (int8, error) {
+func (f *Screen) GetColRow(x, y int) (uint8, error) {
 	if y > len(f.Rows)-1 || y < 0 {
-		return -1, ErrScreens.YOutOfBounds
+		return 0, ErrScreens.YOutOfBounds
 	}
 	if x > len(f.Rows[y])-1 || x < 0 {
-		return -1, ErrScreens.XOutOfBounds
+		return 0, ErrScreens.XOutOfBounds
 	}
 
 	return f.Rows[y][x], nil
@@ -172,7 +173,7 @@ func (f *Screen) Draw() error {
 				continue
 			}
 
-			char, ok = f.CharMap[-1]
+			char, ok = f.CharMap[0]
 			if ok {
 				line = append(line, char...)
 				continue
@@ -196,7 +197,7 @@ func (f *Screen) Draw() error {
 	return nil
 }
 
-func (fh *screenHelper) RenderString(str string, offsetX, offsetY int, state int8) {
+func (fh *screenHelper) RenderString(str string, offsetX, offsetY int, state uint8) {
 	for _, r := range str {
 		cords, ok := charMap[unicode.ToUpper(r)]
 		if !ok {
@@ -208,7 +209,7 @@ func (fh *screenHelper) RenderString(str string, offsetX, offsetY int, state int
 	}
 }
 
-func (fh *screenHelper) RenderStringIf(str string, offsetX, offsetY int, state int8, set func(int8) bool) {
+func (fh *screenHelper) RenderStringIf(str string, offsetX, offsetY int, state uint8, set func(uint8) bool) {
 	for _, r := range str {
 		cords, ok := charMap[unicode.ToUpper(r)]
 		if !ok {
@@ -220,13 +221,13 @@ func (fh *screenHelper) RenderStringIf(str string, offsetX, offsetY int, state i
 	}
 }
 
-func (fh *screenHelper) RenderCords(cords []Cord, offsetX, offsetY int, state int8) {
+func (fh *screenHelper) RenderCords(cords []Cord, offsetX, offsetY int, state uint8) {
 	for _, cord := range cords {
 		fh.f.SetColRow(cord.X+offsetX, cord.Y+offsetY, state)
 	}
 }
 
-func (fh *screenHelper) RenderCordsIf(cords []Cord, offsetX, offsetY int, state int8, set func(int8) bool) {
+func (fh *screenHelper) RenderCordsIf(cords []Cord, offsetX, offsetY int, state uint8, set func(uint8) bool) {
 	for _, cord := range cords {
 		val, err := fh.f.GetColRow(cord.X+offsetX, cord.Y+offsetY)
 		if err != nil {
