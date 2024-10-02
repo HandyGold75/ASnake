@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"time"
+	"strings"
 )
 
 func someClient() {
@@ -29,6 +29,21 @@ func someClient() {
 	}
 
 	reader := bufio.NewReader(conn)
+
+	msg, err := reader.ReadString('\n')
+	if err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		fmt.Printf("Client | Error (%v): %v\r\n", msg, err)
+		return
+	}
+	msg = strings.ReplaceAll(msg, "\n", "")
+	fmt.Printf("Client | Received: %v\r\n", msg)
+	if msg != "Accept" {
+		return
+	}
+
 	for {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
@@ -38,7 +53,9 @@ func someClient() {
 			fmt.Printf("Client | Error (%v): %v\r\n", msg, err)
 			break
 		}
+		msg = strings.ReplaceAll(msg, "\n", "")
+
 		fmt.Printf("Client | Received: %v\r\n", msg)
-		time.Sleep(time.Second)
+		// time.Sleep(time.Second)
 	}
 }
