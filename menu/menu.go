@@ -21,7 +21,7 @@ type (
 		W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT             []byte
 		Zero, One, Two, Three, For, Five, Six, Seven, Eight, Nine []byte
 	}
-	menuObjects struct{ Default, Empty, Background, Text, Selected, Warning int8 }
+	menuObjects struct{ Default, Empty, Background, Text, Selected, Warning uint8 }
 
 	Menu struct {
 		KeyBinds keyBinds
@@ -145,17 +145,17 @@ func NewMenu(gamePnt *game.Game) (*Menu, error) {
 			Zero: []byte{48, 0, 0}, One: []byte{49, 0, 0}, Two: []byte{50, 0, 0}, Three: []byte{51, 0, 0}, For: []byte{52, 0, 0}, Five: []byte{53, 0, 0}, Six: []byte{54, 0, 0}, Seven: []byte{55, 0, 0}, Eight: []byte{56, 0, 0}, Nine: []byte{57, 0, 0},
 		},
 		Objects: menuObjects{
-			Default:    -1,
-			Empty:      0,
-			Background: 1,
-			Text:       2,
-			Selected:   3,
-			Warning:    4,
+			Default:    0,
+			Empty:      1,
+			Background: 2,
+			Text:       3,
+			Selected:   4,
+			Warning:    5,
 		},
 	}
 
 	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
-	scr, err := screen.NewScreen(1000, 1000, map[int8][]byte{
+	scr, err := screen.NewScreen(1000, 1000, map[uint8][]byte{
 		menu.Objects.Default:    append(trm.Escape.Magenta, ResetBytes...),
 		menu.Objects.Empty:      []byte("  "),
 		menu.Objects.Background: append(trm.Escape.Black, ResetBytes...),
