@@ -3,9 +3,12 @@ package menu
 import (
 	"ASnake/game"
 	"ASnake/screen"
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"slices"
 	"strconv"
@@ -35,7 +38,7 @@ var (
 	trm  = &term.Terminal{}
 	gm   = &game.Game{}
 
-	ip1, ip2, ip3, ip4 = 0, 0, 0, 0
+	ip1, ip2, ip3, ip4, port = 127, 0, 0, 1, 17530
 
 	inputCallback          = func([]byte) bool { return false }
 	backSelections         = []string{}
@@ -69,7 +72,7 @@ var (
 
 	mainSelections   = []string{"Start", "Multiplayer", "Options", "Exit"}
 	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count", "Low Performance"}
-	mpSelections     = []string{"IP 1/4", "IP 2/4", "IP 3/4", "IP 4/4", "Connect"}
+	mpSelections     = []string{"IP 1/4", "IP 2/4", "IP 3/4", "IP 4/4", "Port", "Connect"}
 
 	currentSelection    = ""
 	availalbeSelections = mainSelections
@@ -83,6 +86,7 @@ var (
 		"IP 2/4": func(menu *Menu) { settingSetter(menu, &ip2, 256, mpSelections) },
 		"IP 3/4": func(menu *Menu) { settingSetter(menu, &ip3, 256, mpSelections) },
 		"IP 4/4": func(menu *Menu) { settingSetter(menu, &ip4, 256, mpSelections) },
+		"Port":   func(menu *Menu) { settingSetter(menu, &port, 65536, mpSelections) },
 		"Connect": func(menu *Menu) {
 			availalbeSelections = []string{"Confirm"}
 
@@ -92,11 +96,72 @@ var (
 				if value != "Confirm" {
 					return
 				}
-				// exec some networking or something
+
+				menu.updateMenu("")
+				menu.Screen.H.RenderString("Connecting", 2, 8, menu.Objects.Warning)
+
+				con, err := NewConnection()
+				if err != nil {
+					menu.updateMenu("")
+					menu.Screen.H.RenderString("Failed", 2, 8, menu.Objects.Warning)
+					time.Sleep(time.Second * time.Duration(3))
+					return
+				}
+				gm.Config.Connection = con
+
+				menu.updateMenu("")
+				menu.Screen.H.RenderString("Joined", 2, 8, menu.Objects.Warning)
+
+				reader := bufio.NewReader(gm.Config.Connection)
+				msg, err := reader.ReadString('\n')
+				if err != nil {
+					menu.updateMenu("")
+					menu.Screen.H.RenderString("Failed", 2, 8, menu.Objects.Warning)
+					time.Sleep(time.Second * time.Duration(3))
+					return
+				}
+				msg = strings.ReplaceAll(msg, "\n", "")
+
+				for msg == "waiting" {
+					menu.updateMenu("")
+					menu.Screen.H.RenderString("Waiting for players", 2, 8, menu.Objects.Warning)
+
+					msg, err = reader.ReadString('\n')
+					if err != nil {
+						menu.updateMenu("")
+						menu.Screen.H.RenderString("Failed", 2, 8, menu.Objects.Warning)
+						time.Sleep(time.Second * time.Duration(3))
+						return
+					}
+					msg = strings.ReplaceAll(msg, "\n", "")
+				}
+
+				menu.updateMenu("")
+				menu.Screen.H.RenderString("Starting", 2, 8, menu.Objects.Warning)
+
+				update := game.FirstUpdatePacket{}
+				err = json.Unmarshal([]byte(msg), &update)
+				if err != nil {
+					menu.updateMenu("")
+					menu.Screen.H.RenderString("Failed", 2, 8, menu.Objects.Warning)
+					time.Sleep(time.Second * time.Duration(3))
+					return
+				}
+
+				gm.Config.ClientId = update.ClientId
+				gm.State.Players = update.Players
+				gm.State.PeaCrds = update.PeaCrds
+				gm.State.StartTime = update.StartTime
+				gm.State.PlusOneActive = update.PlusOneActive
+				gm.State.TpsTracker = update.TpsTracker
+				gm.Screen.CurX = update.CurX
+				gm.Screen.CurY = update.CurY
+
+				stop <- "Start"
 			}
 
 			menu.updateMenu("")
-			menu.Screen.H.RenderString(fmt.Sprintf("%d.%d.%d.%d", ip1, ip2, ip3, ip4), 2, 8, menu.Objects.Warning)
+			menu.Screen.H.RenderString(fmt.Sprintf("%d.%d.%d.%d:%d", ip1, ip2, ip3, ip4, port), 2, 8, menu.Objects.Warning)
 		},
 
 		"Options": func(menu *Menu) {
@@ -123,6 +188,40 @@ var (
 		},
 	}
 )
+
+func NewConnection() (*net.TCPConn, error) {
+	tcp, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%d.%d.%d.%d:%d", ip1, ip2, ip3, ip4, port))
+	if err != nil {
+		return &net.TCPConn{}, err
+	}
+
+	conn, err := net.DialTCP("tcp", nil, tcp)
+	if err != nil {
+		return &net.TCPConn{}, err
+	}
+
+	_, err = conn.Write([]byte("Join\n"))
+	if err != nil {
+		conn.Close()
+		return &net.TCPConn{}, err
+	}
+
+	reader := bufio.NewReader(conn)
+
+	msg, err := reader.ReadString('\n')
+	if err != nil {
+		conn.Close()
+		return &net.TCPConn{}, err
+	}
+	msg = strings.ReplaceAll(msg, "\n", "")
+
+	if msg != "Accept" {
+		conn.Close()
+		return &net.TCPConn{}, err
+	}
+
+	return conn, nil
+}
 
 func NewMenu(gamePnt *game.Game) (*Menu, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
