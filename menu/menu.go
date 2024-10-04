@@ -154,8 +154,8 @@ var (
 				gm.State.StartTime = update.StartTime
 				gm.State.PlusOneActive = update.PlusOneActive
 				gm.State.TpsTracker = update.TpsTracker
-				gm.Screen.CurX = update.CurX
-				gm.Screen.CurY = update.CurY
+				gm.Screen.MaxX = update.CurX
+				gm.Screen.MaxY = update.CurY
 
 				stop <- "Start"
 			}
@@ -182,6 +182,7 @@ var (
 			availalbeSelections = []string{"Yes", "No"}
 
 			inputCallback = menu.SettingInput
+			backSelections = optionSelections
 			optionSelectedCallback = func(value string) { gm.Config.LockFPSToTPS = value == "Yes" }
 
 			menu.updateMenu("")
@@ -434,6 +435,6 @@ func (menu *Menu) Start() string {
 	menu.updateMenu("")
 	out := menu.loop()
 
-	fmt.Print("\r\n\033[2K\r")
+	fmt.Print("\033c")
 	return out
 }
