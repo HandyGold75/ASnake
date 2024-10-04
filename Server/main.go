@@ -8,18 +8,13 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type (
-	Server struct {
-		IP    string
-		Port  uint16
-		Pools []*Pool
-	}
-
 	Client struct {
 		con net.Conn
 		id  int
@@ -30,10 +25,16 @@ type (
 		Game    *game.Game
 		Status  string
 	}
+
+	Server struct {
+		IP    string
+		Port  uint16
+		Pools []*Pool
+	}
 )
 
 var (
-	maxPlayers = 4
+	maxPlayers = 2
 )
 
 func NewPool() (*Pool, error) {
@@ -41,6 +42,10 @@ func NewPool() (*Pool, error) {
 	if err != nil {
 		return &Pool{}, err
 	}
+	gm.Screen.MaxX = 50
+	gm.Screen.MaxY = 50
+	gm.Screen.Reload()
+
 	gm.Config.PeaSpawnDelay = 2
 	gm.Config.PeaSpawnLimit = 12
 	gm.Config.PeaStartCount = 4
@@ -58,7 +63,6 @@ func NewPool() (*Pool, error) {
 
 func (pool *Pool) poolHandler() {
 	defer pool.stop()
-
 	pool.wait()
 	pool.start()
 	pool.loop()
@@ -176,7 +180,7 @@ func (pool *Pool) loop() {
 
 		if doSend {
 			if err := pool.sendUpdate(); err != nil {
-				fmt.Printf("Server | Error: %v\r\n", err)
+				fmt.Printf("\033[2K\rError     | %v\n", err)
 			}
 		}
 
@@ -198,7 +202,7 @@ func (pool *Pool) sendUpdate() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Server | Send: %v\r\n", update)
+	// fmt.Printf("\033[2K\rSending   | %v\n", update)
 
 	for _, client := range pool.Clients {
 		client.con.Write(append(data, '\n'))
@@ -217,22 +221,21 @@ func (pool *Pool) inputHandler() {
 					if errors.Is(err, net.ErrClosed) {
 						break
 					}
-					fmt.Printf("Server | Error: %v\r\n", err)
 					break
 				}
 				msg = strings.ReplaceAll(msg, "\n", "")
 
 				if !slices.Contains([]string{"up", "right", "down", "left"}, msg) {
-					fmt.Printf("Server | Error: invalid dir '%v'\r\n", msg)
 					continue
 				}
 
 				pool.Game.State.Players[cl.id].Dir = msg
 			}
 
-			fmt.Printf("Closing %s\n", cl.con.RemoteAddr().String())
+			fmt.Printf("\033[2K\rClosing   | %s\n", cl.con.RemoteAddr().String())
 			cl.con.Close()
 			pool.Game.State.Players[cl.id].IsGameOver = true
+			pool.Clients = slices.DeleteFunc(pool.Clients, func(client *Client) bool { return client.id == cl.id })
 		}(client)
 	}
 }
@@ -251,13 +254,34 @@ func (sv *Server) Run() error {
 		return err
 	}
 	defer listener.Close()
-	fmt.Println("Listening on: " + sv.IP + ":" + strconv.FormatUint(uint64(sv.Port), 10))
+	fmt.Printf("\033[2K\rListening | " + sv.IP + ":" + strconv.FormatUint(uint64(sv.Port), 10) + "\n")
+
+	go func() {
+		for {
+			clientLen := 0
+			toRemove := []int{}
+			for i, pool := range sv.Pools {
+				if pool.Status == "stopped" {
+					toRemove = append(toRemove, i)
+					continue
+				}
+				clientLen += len(pool.Clients)
+			}
+
+			sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
+			for _, i := range toRemove {
+				sv.Pools = slices.Delete(sv.Pools, i, i+1)
+			}
+
+			fmt.Printf("\033[2K\rStats     | Pools: %v   Clients: %v", len(sv.Pools), clientLen)
+			time.Sleep(time.Second * 1)
+		}
+	}()
 
 	for {
 		con, err := listener.Accept()
 		if err != nil {
 			con.Close()
-			fmt.Printf("Server | Error: %v\r\n", err)
 			continue
 		}
 		go sv.handleConnection(con)
@@ -265,17 +289,16 @@ func (sv *Server) Run() error {
 }
 
 func (sv *Server) handleConnection(con net.Conn) {
-	fmt.Printf("Serving %s\n", con.RemoteAddr().String())
+	fmt.Printf("\033[2K\rServing   | %s", con.RemoteAddr().String())
+	defer fmt.Println()
 
 	msg, err := bufio.NewReader(con).ReadString('\n')
 	if err != nil {
-		fmt.Printf("Server | Error: %v\r\n", err)
 		con.Close()
 		return
 	}
 	msg = strings.ReplaceAll(msg, "\n", "")
 	if string(msg) != "Join" {
-		fmt.Printf("Server | Error: %v\r\n", msg)
 		con.Close()
 		return
 	}
@@ -287,18 +310,18 @@ func (sv *Server) handleConnection(con net.Conn) {
 			continue
 		}
 
+		fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
 		pool.Clients = append(pool.Clients, &Client{con: con, id: -1})
-
 		return
 	}
 
 	pool, err := NewPool()
 	if err != nil {
-		fmt.Printf("Server | Error: %v\r\n", err)
 		con.Close()
 		return
 	}
 
+	fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
 	pool.Clients = append(pool.Clients, &Client{con: con, id: -1})
 	sv.Pools = append(sv.Pools, pool)
 }

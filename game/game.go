@@ -179,7 +179,7 @@ func NewGameNoTUI() (*Game, error) {
 	}
 
 	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
-	scr, err := screen.NewScreen(1000, 1000, map[uint8][]byte{
+	scr, err := screen.NewScreen(2560, 1440, map[uint8][]byte{
 		game.Objects.Default: append(trm.Escape.Magenta, ResetBytes...),
 		game.Objects.Empty:   []byte("  "),
 		game.Objects.Wall:    append(trm.Escape.Black, ResetBytes...),
@@ -479,6 +479,8 @@ func (game *Game) loopMulti() {
 }
 
 func (game *Game) loop() {
+	game.State.StartTime = time.Now()
+
 	if !game.Config.LockFPSToTPS {
 		go game.loopRender()
 	}
@@ -498,8 +500,6 @@ func (game *Game) Start() error {
 		game.SpawnPea()
 	}
 
-	game.State.StartTime = time.Now()
-	game.Screen.Draw()
 	game.loop()
 
 	fmt.Print("\033[0;0H\r\n" + string(game.Screen.CharMap[game.Objects.Wall]))
