@@ -1,8 +1,8 @@
 package menu
 
 import (
-	"ASnake/game"
-	"ASnake/screen"
+	"ASnake/client/game"
+	"ASnake/client/screen"
 	"bufio"
 	"encoding/json"
 	"errors"

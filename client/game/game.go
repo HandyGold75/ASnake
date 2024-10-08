@@ -1,7 +1,7 @@
 package game
 
 import (
-	"ASnake/screen"
+	"ASnake/client/screen"
 	"bufio"
 	"encoding/json"
 	"errors"
