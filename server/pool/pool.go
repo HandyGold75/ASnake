@@ -1,15 +1,13 @@
-package main
+package pool
 
 import (
-	"ASnake/game"
+	"ASnake/client/game"
 	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,23 +19,18 @@ type (
 	}
 
 	Pool struct {
-		Clients []*Client
-		Game    *game.Game
-		Status  string
-	}
-
-	Server struct {
-		IP    string
-		Port  uint16
-		Pools []*Pool
+		Clients    []*Client
+		Game       *game.Game
+		MaxClients int
+		Status     string
 	}
 )
 
-var (
-	maxPlayers = 2
-)
+func NewClient(con net.Conn, id int) *Client {
+	return &Client{con: con, id: id}
+}
 
-func NewPool() (*Pool, error) {
+func NewPool(maxClients int) (*Pool, error) {
 	gm, err := game.NewGameNoTUI()
 	if err != nil {
 		return &Pool{}, err
@@ -51,9 +44,10 @@ func NewPool() (*Pool, error) {
 	gm.Config.PeaStartCount = 4
 
 	p := &Pool{
-		Clients: []*Client{},
-		Game:    gm,
-		Status:  "initialized",
+		Clients:    []*Client{},
+		Game:       gm,
+		MaxClients: maxClients,
+		Status:     "initialized",
 	}
 
 	go p.poolHandler()
@@ -77,14 +71,14 @@ func (pool *Pool) wait() {
 			queEndTime = time.Now().Add(time.Minute)
 		}
 
-		if len(pool.Clients) >= maxPlayers || time.Now().After(queEndTime) {
+		if len(pool.Clients) >= pool.MaxClients || time.Now().After(queEndTime) {
 			break
 		}
 		for _, client := range pool.Clients {
 			client.con.Write([]byte(pool.Status + "\n"))
 		}
 
-		time.Sleep(time.Second * time.Duration(maxPlayers-len(pool.Clients)))
+		time.Sleep(time.Second * time.Duration(pool.MaxClients-len(pool.Clients)))
 	}
 }
 
@@ -238,94 +232,4 @@ func (pool *Pool) inputHandler() {
 			pool.Clients = slices.DeleteFunc(pool.Clients, func(client *Client) bool { return client.id == cl.id })
 		}(client)
 	}
-}
-
-func NewServer(ip string, port uint16) *Server {
-	return &Server{
-		IP:    ip,
-		Port:  port,
-		Pools: []*Pool{},
-	}
-}
-
-func (sv *Server) Run() error {
-	listener, err := net.Listen("tcp", sv.IP+":"+strconv.FormatUint(uint64(sv.Port), 10))
-	if err != nil {
-		return err
-	}
-	defer listener.Close()
-	fmt.Printf("\033[2K\rListening | " + sv.IP + ":" + strconv.FormatUint(uint64(sv.Port), 10) + "\n")
-
-	go func() {
-		for {
-			clientLen := 0
-			toRemove := []int{}
-			for i, pool := range sv.Pools {
-				if pool.Status == "stopped" {
-					toRemove = append(toRemove, i)
-					continue
-				}
-				clientLen += len(pool.Clients)
-			}
-
-			sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
-			for _, i := range toRemove {
-				sv.Pools = slices.Delete(sv.Pools, i, i+1)
-			}
-
-			fmt.Printf("\033[2K\rStats     | Pools: %v   Clients: %v", len(sv.Pools), clientLen)
-			time.Sleep(time.Second * 1)
-		}
-	}()
-
-	for {
-		con, err := listener.Accept()
-		if err != nil {
-			con.Close()
-			continue
-		}
-		go sv.handleConnection(con)
-	}
-}
-
-func (sv *Server) handleConnection(con net.Conn) {
-	fmt.Printf("\033[2K\rServing   | %s", con.RemoteAddr().String())
-	defer fmt.Println()
-
-	msg, err := bufio.NewReader(con).ReadString('\n')
-	if err != nil {
-		con.Close()
-		return
-	}
-	msg = strings.ReplaceAll(msg, "\n", "")
-	if string(msg) != "Join" {
-		con.Close()
-		return
-	}
-
-	con.Write([]byte("Accept\n"))
-
-	for _, pool := range sv.Pools {
-		if len(pool.Clients) >= maxPlayers || pool.Status != "waiting" {
-			continue
-		}
-
-		fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
-		pool.Clients = append(pool.Clients, &Client{con: con, id: -1})
-		return
-	}
-
-	pool, err := NewPool()
-	if err != nil {
-		con.Close()
-		return
-	}
-
-	fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
-	pool.Clients = append(pool.Clients, &Client{con: con, id: -1})
-	sv.Pools = append(sv.Pools, pool)
-}
-
-func main() {
-	NewServer("127.0.0.1", 17530).Run()
 }
