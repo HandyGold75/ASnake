@@ -16,7 +16,6 @@ import (
 
 type (
 	Server struct {
-		IP    string
 		Port  uint16
 		Pools []*pool.Pool
 		Lgr   *logger.Logger
@@ -33,7 +32,6 @@ func NewServer(ip string, port uint16) *Server {
 	lgr.CharCountPerMsg = 16
 
 	sv := &Server{
-		IP:    ip,
 		Port:  port,
 		Pools: []*pool.Pool{},
 		Lgr:   lgr,
@@ -55,12 +53,12 @@ func NewServer(ip string, port uint16) *Server {
 }
 
 func (sv *Server) Run() error {
-	listener, err := net.Listen("tcp", sv.IP+":"+strconv.FormatUint(uint64(sv.Port), 10))
+	listener, err := net.Listen("tcp", ":"+strconv.FormatUint(uint64(sv.Port), 10))
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
-	sv.Lgr.Log("medium", "Listening", sv.IP+":"+strconv.FormatUint(uint64(sv.Port), 10))
+	sv.Lgr.Log("medium", "Listening", ":"+strconv.FormatUint(uint64(sv.Port), 10))
 
 	go func() {
 		for {
