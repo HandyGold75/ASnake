@@ -206,16 +206,32 @@ func (game *Game) statsBar() {
 	timeDiff := time.Now().Sub(game.State.StartTime)
 	timeStr := fmt.Sprintf("%02d:%02d:%02d:%03d", int(timeDiff.Hours()), int(timeDiff.Minutes())%60, int(timeDiff.Seconds())%60, int(timeDiff.Milliseconds())%1000)
 
-	tpsColor := ""
-	if game.State.TpsTracker < game.Config.TargetTPS {
-		tpsColor = string(trm.Escape.Red)
+	sizeXColor := ""
+	if game.Config.Connection != nil && game.Screen.CurX < game.Screen.MaxX {
+		sizeXColor = string(trm.Escape.Red)
 	}
+	sizeYColor := ""
+	if game.Config.Connection != nil && game.Screen.CurY < game.Screen.MaxY {
+		sizeYColor = string(trm.Escape.Red)
+	}
+
 	fpsColor := ""
 	if !game.Config.LockFPSToTPS && game.State.FpsTracker < game.Config.TargetFPS-(game.Config.TargetFPS/5) {
 		fpsColor = string(trm.Escape.Red)
 	}
+	tpsColor := ""
+	if game.State.TpsTracker < game.Config.TargetTPS {
+		tpsColor = string(trm.Escape.Red)
+	}
 
-	msg := fmt.Sprintf("Time: %v   Peas: %v   Size: %vx %vy   FPS: %v   TPS: %v ", timeStr, len(game.State.Players[game.Config.ClientId].TailCrds), game.Screen.CurX, game.Screen.CurY, fpsColor+strconv.Itoa(game.State.FpsTracker)+string(trm.Escape.Reset), tpsColor+strconv.Itoa(game.State.TpsTracker)+string(trm.Escape.Reset))
+	msg := fmt.Sprintf("Time: %v   Peas: %v   Size: %vx %vy   FPS: %v   TPS: %v ",
+		timeStr,
+		len(game.State.Players[game.Config.ClientId].TailCrds),
+		sizeXColor+strconv.Itoa(game.Screen.CurX)+string(trm.Escape.Reset),
+		sizeYColor+strconv.Itoa(game.Screen.MaxY)+string(trm.Escape.Reset),
+		fpsColor+strconv.Itoa(game.State.FpsTracker)+string(trm.Escape.Reset),
+		tpsColor+strconv.Itoa(game.State.TpsTracker)+string(trm.Escape.Reset),
+	)
 
 	if len([]rune(msg)) > game.Screen.CurX*2 {
 		fmt.Printf("\033[2K\r%."+strconv.Itoa(game.Screen.CurX*2)+"s...", msg)

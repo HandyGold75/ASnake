@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/HandyGold75/GOLib/logger"
 )
 
 type (
@@ -17,6 +19,7 @@ type (
 		IP    string
 		Port  uint16
 		Pools []*pool.Pool
+		Lgr   *logger.Logger
 	}
 )
 
@@ -25,11 +28,30 @@ var (
 )
 
 func NewServer(ip string, port uint16) *Server {
-	return &Server{
+	lgr := logger.New("ASnake.log")
+	lgr.UseSeperators = false
+	lgr.CharCountPerMsg = 16
+
+	sv := &Server{
 		IP:    ip,
 		Port:  port,
 		Pools: []*pool.Pool{},
+		Lgr:   lgr,
 	}
+
+	lgr.MessageCLIHook = func(msg string) {
+		clientLen := 0
+		for _, pl := range sv.Pools {
+			if pl.Status == "stopped" {
+				continue
+			}
+			clientLen += len(pl.Clients)
+		}
+
+		fmt.Printf("["+time.Now().Format(time.DateTime)+"] %-"+strconv.Itoa(sv.Lgr.CharCountVerbosity)+"v Pools: %v | Clients: %v      \r", "stats", len(sv.Pools), clientLen)
+	}
+
+	return sv
 }
 
 func (sv *Server) Run() error {
@@ -38,7 +60,7 @@ func (sv *Server) Run() error {
 		return err
 	}
 	defer listener.Close()
-	fmt.Printf("\033[2K\rListening | " + sv.IP + ":" + strconv.FormatUint(uint64(sv.Port), 10) + "\n")
+	sv.Lgr.Log("medium", "Listening", sv.IP+":"+strconv.FormatUint(uint64(sv.Port), 10))
 
 	go func() {
 		for {
@@ -51,20 +73,21 @@ func (sv *Server) Run() error {
 				}
 				clientLen += len(pl.Clients)
 			}
-
 			sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
+
 			for _, i := range toRemove {
 				sv.Pools = slices.Delete(sv.Pools, i, i+1)
 			}
 
-			fmt.Printf("\033[2K\rStats     | Pools: %v   Clients: %v", len(sv.Pools), clientLen)
-			time.Sleep(time.Second * 1)
+			fmt.Printf("["+time.Now().Format(time.DateTime)+"] %-"+strconv.Itoa(sv.Lgr.CharCountVerbosity)+"v Pools: %v | Clients: %v      \r", "stats", len(sv.Pools), clientLen)
+			time.Sleep(time.Second)
 		}
 	}()
 
 	for {
 		con, err := listener.Accept()
 		if err != nil {
+			sv.Lgr.Log("high", "Error", err)
 			con.Close()
 			continue
 		}
@@ -73,16 +96,17 @@ func (sv *Server) Run() error {
 }
 
 func (sv *Server) handleConnection(con net.Conn) {
-	fmt.Printf("\033[2K\rServing   | %s", con.RemoteAddr().String())
-	defer fmt.Println()
+	sv.Lgr.Log("low", "Serving", con.RemoteAddr().String())
 
 	msg, err := bufio.NewReader(con).ReadString('\n')
 	if err != nil {
+		sv.Lgr.Log("medium", "Rejected", con.RemoteAddr().String())
 		con.Close()
 		return
 	}
 	msg = strings.ReplaceAll(msg, "\n", "")
 	if string(msg) != "Join" {
+		sv.Lgr.Log("medium", "Rejected", con.RemoteAddr().String())
 		con.Close()
 		return
 	}
@@ -94,18 +118,19 @@ func (sv *Server) handleConnection(con net.Conn) {
 			continue
 		}
 
-		fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
-		pl.Clients = append(pl.Clients, pool.NewClient(con, -1))
+		sv.Lgr.Log("medium", "Accepted", con.RemoteAddr().String())
+		pl.AddClient(con)
 		return
 	}
 
-	pl, err := pool.NewPool(MaxClients)
+	pl, err := pool.NewPool(MaxClients, sv.Lgr)
 	if err != nil {
+		sv.Lgr.Log("high", "Error", err)
 		con.Close()
 		return
 	}
 
-	fmt.Printf("\033[2K\rAccepted  | %s", con.RemoteAddr().String())
-	pl.Clients = append(pl.Clients, pool.NewClient(con, -1))
+	sv.Lgr.Log("medium", "Accepted", con.RemoteAddr().String())
+	pl.AddClient(con)
 	sv.Pools = append(sv.Pools, pl)
 }

@@ -5,11 +5,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"slices"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/HandyGold75/GOLib/logger"
 )
 
 type (
@@ -23,14 +25,11 @@ type (
 		Game       *game.Game
 		MaxClients int
 		Status     string
+		Lgr        *logger.Logger
 	}
 )
 
-func NewClient(con net.Conn, id int) *Client {
-	return &Client{con: con, id: id}
-}
-
-func NewPool(maxClients int) (*Pool, error) {
+func NewPool(maxClients int, lgr *logger.Logger) (*Pool, error) {
 	gm, err := game.NewGameNoTUI()
 	if err != nil {
 		return &Pool{}, err
@@ -48,11 +47,38 @@ func NewPool(maxClients int) (*Pool, error) {
 		Game:       gm,
 		MaxClients: maxClients,
 		Status:     "initialized",
+		Lgr:        lgr,
 	}
 
 	go p.poolHandler()
 
 	return p, nil
+}
+
+func (pool *Pool) AddClient(con net.Conn) {
+	cl := &Client{con: con, id: -1}
+	pool.Clients = append(pool.Clients, cl)
+	pool.inputHandler(cl)
+}
+
+func (pool *Pool) DelClient(id int) {
+	var cl *Client
+	for _, client := range pool.Clients {
+		if client.id == id {
+			cl = client
+			break
+		}
+	}
+	if cl == nil {
+		return
+	}
+
+	pool.Lgr.Log("medium", "Disconnecting", cl.con.RemoteAddr().String())
+	cl.con.Close()
+	if cl.id >= 0 {
+		pool.Game.State.Players[cl.id].IsGameOver = true
+	}
+	pool.Clients = slices.DeleteFunc(pool.Clients, func(client *Client) bool { return client.id == cl.id })
 }
 
 func (pool *Pool) poolHandler() {
@@ -112,8 +138,6 @@ func (pool *Pool) start() {
 		client.con.Write(append(data, '\n'))
 	}
 
-	pool.inputHandler()
-
 	for i := 0; i < pool.Game.Config.PeaStartCount; i++ {
 		pool.Game.SpawnPea()
 	}
@@ -125,10 +149,15 @@ func (pool *Pool) start() {
 
 func (pool *Pool) stop() {
 	pool.Status = "stopping"
+	toRemove := []int{}
 	for _, client := range pool.Clients {
-		client.con.Close()
+		toRemove = append(toRemove, client.id)
 	}
-	pool.Clients = []*Client{}
+	sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
+
+	for _, id := range toRemove {
+		pool.DelClient(id)
+	}
 	pool.Status = "stopped"
 }
 
@@ -174,7 +203,7 @@ func (pool *Pool) loop() {
 
 		if doSend {
 			if err := pool.sendUpdate(); err != nil {
-				fmt.Printf("\033[2K\rError     | %v\n", err)
+				pool.Lgr.Log("high", "Error", err)
 			}
 		}
 
@@ -196,7 +225,6 @@ func (pool *Pool) sendUpdate() error {
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("\033[2K\rSending   | %v\n", update)
 
 	for _, client := range pool.Clients {
 		client.con.Write(append(data, '\n'))
@@ -205,31 +233,28 @@ func (pool *Pool) sendUpdate() error {
 	return nil
 }
 
-func (pool *Pool) inputHandler() {
-	for _, client := range pool.Clients {
-		go func(cl *Client) {
-			reader := bufio.NewReader(cl.con)
-			for pool.Status != "stopping" && pool.Status != "stopped" {
-				msg, err := reader.ReadString('\n')
-				if err != nil {
-					if errors.Is(err, net.ErrClosed) {
-						break
-					}
+func (pool *Pool) inputHandler(client *Client) {
+	go func(cl *Client) {
+		defer pool.DelClient(cl.id)
+
+		reader := bufio.NewReader(cl.con)
+		for pool.Status != "stopping" && pool.Status != "stopped" {
+			msg, err := reader.ReadString('\n')
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
 					break
 				}
-				msg = strings.ReplaceAll(msg, "\n", "")
+				break
+			}
+			msg = strings.ReplaceAll(msg, "\n", "")
 
-				if !slices.Contains([]string{"up", "right", "down", "left"}, msg) {
-					continue
-				}
-
-				pool.Game.State.Players[cl.id].Dir = msg
+			if !slices.Contains([]string{"up", "right", "down", "left"}, msg) {
+				continue
 			}
 
-			fmt.Printf("\033[2K\rClosing   | %s\n", cl.con.RemoteAddr().String())
-			cl.con.Close()
-			pool.Game.State.Players[cl.id].IsGameOver = true
-			pool.Clients = slices.DeleteFunc(pool.Clients, func(client *Client) bool { return client.id == cl.id })
-		}(client)
-	}
+			if cl.id >= 0 {
+				pool.Game.State.Players[cl.id].Dir = msg
+			}
+		}
+	}(client)
 }
