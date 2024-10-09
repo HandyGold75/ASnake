@@ -38,11 +38,11 @@ var (
 	trm  = &term.Terminal{}
 	gm   = &game.Game{}
 
-	ip1, ip2, ip3, ip4, port = 127, 0, 0, 1, 17530
+	ip1, ip2, ip3, ip4, port = 84, 25, 253, 77, 17530
 
 	inputCallback          = func([]byte) bool { return false }
 	backSelections         = []string{}
-	optionSelectedCallback = func(string) {}
+	optionSelectedCallback = func(string, bool) {}
 
 	lastNumberInput   = time.Now()
 	numberInputBuffer = []string{}
@@ -58,7 +58,7 @@ var (
 
 		inputCallback = menu.SettingInput
 		backSelections = backSels
-		optionSelectedCallback = func(value string) {
+		optionSelectedCallback = func(value string, confirm bool) {
 			out, err := strconv.Atoi(value)
 			if err != nil {
 				menu.Screen.H.RenderString(err.Error(), 8, 2, menu.Objects.Warning)
@@ -92,8 +92,8 @@ var (
 
 			inputCallback = menu.SettingInput
 			backSelections = mpSelections
-			optionSelectedCallback = func(value string) {
-				if value != "Confirm" {
+			optionSelectedCallback = func(value string, confirm bool) {
+				if !confirm || value != "Confirm" {
 					return
 				}
 
@@ -183,7 +183,7 @@ var (
 
 			inputCallback = menu.SettingInput
 			backSelections = optionSelections
-			optionSelectedCallback = func(value string) { gm.Config.LockFPSToTPS = value == "Yes" }
+			optionSelectedCallback = func(value string, confirm bool) { gm.Config.LockFPSToTPS = value == "Yes" }
 
 			menu.updateMenu("")
 		},
@@ -295,10 +295,10 @@ func (menu *Menu) SettingInput(in []byte) bool {
 		return false
 
 	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
-		optionSelectedCallback(currentSelection)
+		optionSelectedCallback(currentSelection, true)
 
 		inputCallback = func([]byte) bool { return false }
-		optionSelectedCallback = func(string) {}
+		optionSelectedCallback = func(string, bool) {}
 
 		currentSelection = ""
 		availalbeSelections = backSelections
@@ -310,10 +310,10 @@ func (menu *Menu) SettingInput(in []byte) bool {
 		return false
 
 	} else if slices.Equal(in, menu.KeyBinds.A) || slices.Equal(in, menu.KeyBinds.H) || slices.Equal(in, menu.KeyBinds.LEFT) {
-		optionSelectedCallback(currentSelection)
+		optionSelectedCallback(currentSelection, false)
 
 		inputCallback = func([]byte) bool { return false }
-		optionSelectedCallback = func(string) {}
+		optionSelectedCallback = func(string, bool) {}
 
 		currentSelection = ""
 		availalbeSelections = backSelections
