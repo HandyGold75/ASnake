@@ -8,6 +8,7 @@ import (
 	"net"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,6 +71,7 @@ func (pool *Pool) DelClient(id int) {
 		}
 	}
 	if cl == nil {
+		pool.Lgr.Log("high", "Error", "Unalbe to del client '"+strconv.Itoa(id)+"'")
 		return
 	}
 
@@ -156,6 +158,7 @@ func (pool *Pool) stop() {
 	sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
 
 	for _, id := range toRemove {
+
 		pool.DelClient(id)
 	}
 	pool.Status = "stopped"
