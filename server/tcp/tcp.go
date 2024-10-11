@@ -23,7 +23,7 @@ type (
 )
 
 var (
-	MaxClients = 2
+	MaxClients = 4
 )
 
 func NewServer(ip string, port uint16) *Server {
