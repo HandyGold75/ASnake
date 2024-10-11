@@ -109,12 +109,15 @@ func NewGame(orgTrm *term.State) (*Game, error) {
 		TailCrds: []Cord{},
 	}}
 
-	for i := 0; i <= gm.Screen.CurX; i++ {
-		gm.Screen.SetCol(i, gm.Objects.Empty)
+	for i := 1; i < gm.Screen.CurX; i++ {
+		gm.Screen.SetRow(i, gm.Objects.Wall)
 	}
-	for i := 0; i <= gm.Screen.CurY; i++ {
-		gm.Screen.SetRow(i, gm.Objects.Empty)
-	}
+
+	gm.Screen.SetCol(0, gm.Objects.Wall)
+	gm.Screen.SetRow(0, gm.Objects.Wall)
+	gm.Screen.SetCol(gm.Screen.CurX, gm.Objects.Wall)
+	gm.Screen.SetRow(gm.Screen.CurY, gm.Objects.Wall)
+
 	gm.Screen.SetColRow(gm.State.Players[gm.Config.ClientId].Crd.X, gm.State.Players[gm.Config.ClientId].Crd.Y, gm.Objects.Player)
 
 	gm.Screen.OnResizeCallback = func(scr *screen.Screen) {
@@ -191,11 +194,6 @@ func NewGameNoTUI() (*Game, error) {
 	if err != nil {
 		return &Game{}, err
 	}
-
-	scr.SetCol(0, game.Objects.Wall)
-	scr.SetRow(0, game.Objects.Wall)
-	scr.SetCol(scr.CurX, game.Objects.Wall)
-	scr.SetRow(scr.CurY, game.Objects.Wall)
 
 	game.Screen = scr
 

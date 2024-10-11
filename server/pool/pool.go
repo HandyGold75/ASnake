@@ -35,7 +35,16 @@ func NewPool(lgr *logger.Logger) (*Pool, error) {
 	gm.Screen.CurX = 50
 	gm.Screen.CurY = 50
 
-	gm.Config.PeaSpawnDelay = 2
+	for i := 1; i < gm.Screen.CurX; i++ {
+		gm.Screen.SetRow(i, gm.Objects.Empty)
+	}
+
+	gm.Screen.SetCol(0, gm.Objects.Wall)
+	gm.Screen.SetRow(0, gm.Objects.Wall)
+	gm.Screen.SetCol(gm.Screen.CurX, gm.Objects.Wall)
+	gm.Screen.SetRow(gm.Screen.CurY, gm.Objects.Wall)
+
+	gm.Config.PeaSpawnDelay = 3
 	gm.Config.PeaSpawnLimit = 12
 	gm.Config.PeaStartCount = 4
 
@@ -58,16 +67,19 @@ func (pool *Pool) AddClient(con *net.Conn) {
 		pool.inputHandler(pool.Clients[id])
 
 	} else if pool.Status == "started" {
-		pool.Clients[id] = con
-		pool.inputHandler(pool.Clients[id])
-
 		cord := game.Cord{X: rand.IntN(pool.Game.Screen.CurX-1) + 1, Y: rand.IntN(pool.Game.Screen.CurY-1) + 1}
-		for i := 1; i < 100; i++ {
+		for i := 1; i <= 100; i++ {
+			if i == 100 {
+				pool.Lgr.Log("high", "Error", "No space left for new player")
+				(*con).Close()
+				return
+			}
+
 			valid := true
-			for y := 0; y < 5; y++ {
-				for x := 0; x < 5; x++ {
-					val, _ := pool.Game.Screen.GetColRow(cord.X+(x-2), cord.Y+(y-2))
-					if val == pool.Game.Objects.Empty {
+			for y := -2; y < 3; y++ {
+				for x := -2; x < 3; x++ {
+					val, _ := pool.Game.Screen.GetColRow(cord.X+x, cord.Y+y)
+					if val != pool.Game.Objects.Empty && val != pool.Game.Objects.PlusOne {
 						valid = false
 						break
 					}
@@ -78,14 +90,12 @@ func (pool *Pool) AddClient(con *net.Conn) {
 			}
 			if !valid {
 				cord = game.Cord{X: rand.IntN(pool.Game.Screen.CurX-1) + 1, Y: rand.IntN(pool.Game.Screen.CurY-1) + 1}
-				continue
 			}
-
-			if i == 99 {
-				pool.Lgr.Log("high", "Error", "No space left for new player")
-				(*con).Close()
-			}
+			break
 		}
+
+		pool.Clients[id] = con
+		pool.inputHandler(pool.Clients[id])
 
 		pool.Game.State.Players[id] = game.Player{
 			Crd: game.Cord{X: cord.X, Y: cord.Y},
@@ -164,10 +174,6 @@ func (pool *Pool) wait() {
 func (pool *Pool) start() {
 	pool.Status = "starting"
 
-	for i := 0; i < pool.Game.Config.PeaStartCount; i++ {
-		pool.Game.SpawnPea()
-	}
-
 	pool.Game.State.Players = make(map[string]game.Player, len(pool.Clients))
 	i := 0
 	for id, client := range pool.Clients {
@@ -203,6 +209,10 @@ func (pool *Pool) start() {
 		i++
 	}
 
+	for i := 0; i < pool.Game.Config.PeaStartCount; i++ {
+		pool.Game.SpawnPea()
+	}
+
 	pool.Game.State.StartTime = time.Now()
 
 	pool.Status = "started"
@@ -210,11 +220,9 @@ func (pool *Pool) start() {
 
 func (pool *Pool) stop() {
 	pool.Status = "stopping"
-
 	for _, client := range pool.Clients {
 		pool.DelClient(client)
 	}
-
 	pool.Status = "stopped"
 }
 
