@@ -112,16 +112,16 @@ func (sv *Server) handleConnection(con net.Conn) {
 	con.Write([]byte("Accept\n"))
 
 	for _, pl := range sv.Pools {
-		if len(pl.Clients) >= MaxClients || pl.Status != "waiting" {
+		if len(pl.Clients) >= MaxClients || (pl.Status != "initialized" && pl.Status != "waiting" && pl.Status != "started") {
 			continue
 		}
 
 		sv.Lgr.Log("medium", "Accepted", con.RemoteAddr().String())
-		pl.AddClient(con)
+		pl.AddClient(&con)
 		return
 	}
 
-	pl, err := pool.NewPool(MaxClients, sv.Lgr)
+	pl, err := pool.NewPool(sv.Lgr)
 	if err != nil {
 		sv.Lgr.Log("high", "Error", err)
 		con.Close()
@@ -129,6 +129,6 @@ func (sv *Server) handleConnection(con net.Conn) {
 	}
 
 	sv.Lgr.Log("medium", "Accepted", con.RemoteAddr().String())
-	pl.AddClient(con)
+	pl.AddClient(&con)
 	sv.Pools = append(sv.Pools, pl)
 }

@@ -5,10 +5,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"math/rand/v2"
 	"net"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,13 +15,8 @@ import (
 )
 
 type (
-	Client struct {
-		con net.Conn
-		id  int
-	}
-
 	Pool struct {
-		Clients    []*Client
+		Clients    map[string]*net.Conn
 		Game       *game.Game
 		MaxClients int
 		Status     string
@@ -30,7 +24,7 @@ type (
 	}
 )
 
-func NewPool(maxClients int, lgr *logger.Logger) (*Pool, error) {
+func NewPool(lgr *logger.Logger) (*Pool, error) {
 	gm, err := game.NewGameNoTUI()
 	if err != nil {
 		return &Pool{}, err
@@ -38,17 +32,18 @@ func NewPool(maxClients int, lgr *logger.Logger) (*Pool, error) {
 	gm.Screen.MaxX = 50
 	gm.Screen.MaxY = 50
 	gm.Screen.Reload()
+	gm.Screen.CurX = 50
+	gm.Screen.CurY = 50
 
 	gm.Config.PeaSpawnDelay = 2
 	gm.Config.PeaSpawnLimit = 12
 	gm.Config.PeaStartCount = 4
 
 	p := &Pool{
-		Clients:    []*Client{},
-		Game:       gm,
-		MaxClients: maxClients,
-		Status:     "initialized",
-		Lgr:        lgr,
+		Clients: map[string]*net.Conn{},
+		Game:    gm,
+		Status:  "initialized",
+		Lgr:     lgr,
 	}
 
 	go p.poolHandler()
@@ -56,31 +51,87 @@ func NewPool(maxClients int, lgr *logger.Logger) (*Pool, error) {
 	return p, nil
 }
 
-func (pool *Pool) AddClient(con net.Conn) {
-	cl := &Client{con: con, id: -1}
-	pool.Clients = append(pool.Clients, cl)
-	pool.inputHandler(cl)
+func (pool *Pool) AddClient(con *net.Conn) {
+	id := (*con).RemoteAddr().String()
+	if pool.Status == "initialized" || pool.Status == "waiting" {
+		pool.Clients[id] = con
+		pool.inputHandler(pool.Clients[id])
+
+	} else if pool.Status == "started" {
+		pool.Clients[id] = con
+		pool.inputHandler(pool.Clients[id])
+
+		cord := game.Cord{X: rand.IntN(pool.Game.Screen.CurX-1) + 1, Y: rand.IntN(pool.Game.Screen.CurY-1) + 1}
+		for i := 1; i < 100; i++ {
+			valid := true
+			for y := 0; y < 5; y++ {
+				for x := 0; x < 5; x++ {
+					val, _ := pool.Game.Screen.GetColRow(cord.X+(x-2), cord.Y+(y-2))
+					if val == pool.Game.Objects.Empty {
+						valid = false
+						break
+					}
+				}
+				if !valid {
+					break
+				}
+			}
+			if !valid {
+				cord = game.Cord{X: rand.IntN(pool.Game.Screen.CurX-1) + 1, Y: rand.IntN(pool.Game.Screen.CurY-1) + 1}
+				continue
+			}
+
+			if i == 99 {
+				pool.Lgr.Log("high", "Error", "No space left for new player")
+				(*con).Close()
+			}
+		}
+
+		pool.Game.State.Players[id] = game.Player{
+			Crd: game.Cord{X: cord.X, Y: cord.Y},
+			Dir: "right", CurDir: "right",
+			TailCrds: []game.Cord{},
+		}
+
+		update := game.FirstUpdatePacket{
+			ClientId:      id,
+			Players:       pool.Game.State.Players,
+			PeaCrds:       pool.Game.State.PeaCrds,
+			StartTime:     pool.Game.State.StartTime,
+			PlusOneActive: pool.Game.State.PlusOneActive,
+			TpsTracker:    pool.Game.State.TpsTracker,
+			CurX:          pool.Game.Screen.CurX, CurY: pool.Game.Screen.CurY,
+		}
+		data, err := json.Marshal(update)
+		if err != nil {
+			pool.Status = "stopping"
+			return
+		}
+
+		(*pool.Clients[id]).Write(append(data, '\n'))
+
+	} else {
+		pool.Lgr.Log("high", "Error", "Attempting add on stopped pool")
+		(*con).Close()
+	}
 }
 
-func (pool *Pool) DelClient(id int) {
-	var cl *Client
-	for _, client := range pool.Clients {
-		if client.id == id {
-			cl = client
-			break
-		}
-	}
-	if cl == nil {
-		pool.Lgr.Log("high", "Error", "Unalbe to del client '"+strconv.Itoa(id)+"'")
+func (pool *Pool) DelClient(con *net.Conn) {
+	id := (*con).RemoteAddr().String()
+	cl, ok := pool.Clients[id]
+	if !ok {
+		pool.Lgr.Log("high", "Error", "Unable to disconnect client '"+id+"'")
 		return
 	}
 
-	pool.Lgr.Log("medium", "Disconnecting", cl.con.RemoteAddr().String())
-	cl.con.Close()
-	if cl.id >= 0 {
-		pool.Game.State.Players[cl.id].IsGameOver = true
+	pool.Lgr.Log("medium", "Disconnecting", id)
+	(*cl).Close()
+	if _, ok := pool.Game.State.Players[id]; ok {
+		playerState := pool.Game.State.Players[id]
+		playerState.IsGameOver = true
+		pool.Game.State.Players[id] = playerState
 	}
-	pool.Clients = slices.DeleteFunc(pool.Clients, func(client *Client) bool { return client.id == cl.id })
+	delete(pool.Clients, id)
 }
 
 func (pool *Pool) poolHandler() {
@@ -99,31 +150,42 @@ func (pool *Pool) wait() {
 			queEndTime = time.Now().Add(time.Minute)
 		}
 
-		if len(pool.Clients) >= pool.MaxClients || time.Now().After(queEndTime) {
+		if len(pool.Clients) >= 2 || time.Now().After(queEndTime) {
 			break
 		}
 		for _, client := range pool.Clients {
-			client.con.Write([]byte(pool.Status + "\n"))
+			(*client).Write([]byte(pool.Status + "\n"))
 		}
 
-		time.Sleep(time.Second * time.Duration(pool.MaxClients-len(pool.Clients)))
+		time.Sleep(time.Second * 3)
 	}
 }
 
 func (pool *Pool) start() {
 	pool.Status = "starting"
 
-	pool.Game.State.Players = make([]game.Player, len(pool.Clients))
-	for i, client := range pool.Clients {
-		client.id = i
-		pool.Game.State.Players[client.id] = game.Player{
-			Crd: game.Cord{X: int(pool.Game.Screen.CurX / 2), Y: int(pool.Game.Screen.CurY / (len(pool.Clients) + client.id))},
+	for i := 0; i < pool.Game.Config.PeaStartCount; i++ {
+		pool.Game.SpawnPea()
+	}
+
+	pool.Game.State.Players = make(map[string]game.Player, len(pool.Clients))
+	i := 0
+	for id, client := range pool.Clients {
+		startY := int(pool.Game.Screen.CurY / 2)
+		if i%2 == 0 {
+			startY += i
+		} else {
+			startY -= (i + 1)
+		}
+
+		pool.Game.State.Players[id] = game.Player{
+			Crd: game.Cord{X: int(pool.Game.Screen.CurX / 2), Y: startY},
 			Dir: "right", CurDir: "right",
 			TailCrds: []game.Cord{},
 		}
 
 		update := game.FirstUpdatePacket{
-			ClientId:      client.id,
+			ClientId:      id,
 			Players:       pool.Game.State.Players,
 			PeaCrds:       pool.Game.State.PeaCrds,
 			StartTime:     pool.Game.State.StartTime,
@@ -137,11 +199,8 @@ func (pool *Pool) start() {
 			return
 		}
 
-		client.con.Write(append(data, '\n'))
-	}
-
-	for i := 0; i < pool.Game.Config.PeaStartCount; i++ {
-		pool.Game.SpawnPea()
+		(*client).Write(append(data, '\n'))
+		i++
 	}
 
 	pool.Game.State.StartTime = time.Now()
@@ -151,16 +210,11 @@ func (pool *Pool) start() {
 
 func (pool *Pool) stop() {
 	pool.Status = "stopping"
-	toRemove := []int{}
+
 	for _, client := range pool.Clients {
-		toRemove = append(toRemove, client.id)
+		pool.DelClient(client)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(toRemove)))
 
-	for _, id := range toRemove {
-
-		pool.DelClient(id)
-	}
 	pool.Status = "stopped"
 }
 
@@ -176,12 +230,12 @@ func (pool *Pool) loop() {
 		if i%updateFramePlayer == 0 {
 			doSend = true
 			isOneAlive := false
-			for _, client := range pool.Clients {
-				if pool.Game.State.Players[client.id].IsGameOver {
+			for id := range pool.Clients {
+				if pool.Game.State.Players[id].IsGameOver {
 					continue
 				}
 				isOneAlive = true
-				pool.Game.UpdatePlayer(client.id)
+				pool.Game.UpdatePlayer(id)
 			}
 			if !isOneAlive {
 				break
@@ -230,17 +284,21 @@ func (pool *Pool) sendUpdate() error {
 	}
 
 	for _, client := range pool.Clients {
-		client.con.Write(append(data, '\n'))
+		(*client).Write(append(data, '\n'))
 	}
 
 	return nil
 }
 
-func (pool *Pool) inputHandler(client *Client) {
-	go func(cl *Client) {
-		defer pool.DelClient(cl.id)
+func (pool *Pool) inputHandler(con *net.Conn) {
+	go func() {
+		defer func() {
+			if pool.Status != "stopping" && pool.Status != "stopped" {
+				pool.DelClient(con)
+			}
+		}()
 
-		reader := bufio.NewReader(cl.con)
+		reader := bufio.NewReader(*con)
 		for pool.Status != "stopping" && pool.Status != "stopped" {
 			msg, err := reader.ReadString('\n')
 			if err != nil {
@@ -255,9 +313,10 @@ func (pool *Pool) inputHandler(client *Client) {
 				continue
 			}
 
-			if cl.id >= 0 {
-				pool.Game.State.Players[cl.id].Dir = msg
-			}
+			id := (*con).RemoteAddr().String()
+			playerState := pool.Game.State.Players[id]
+			playerState.Dir = msg
+			pool.Game.State.Players[id] = playerState
 		}
-	}(client)
+	}()
 }

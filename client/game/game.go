@@ -37,12 +37,12 @@ type (
 	gameConfig  struct {
 		LockFPSToTPS                                                           bool
 		Connection                                                             net.Conn
-		ClientId                                                               int
+		ClientId                                                               string
 		TargetTPS, TargetFPS                                                   int
 		PlayerSpeed, PeaSpawnDelay, PeaSpawnLimit, PeaStartCount, PlusOneDelay int
 	}
 	gameState struct {
-		Players       []Player
+		Players       map[string]Player
 		PeaCrds       []Cord
 		StartTime     time.Time
 		PlusOneActive bool
@@ -59,15 +59,15 @@ type (
 	}
 
 	UpdatePacket struct {
-		Players       []Player
+		Players       map[string]Player
 		PeaCrds       []Cord
 		PlusOneActive bool
 		TpsTracker    int
 	}
 
 	FirstUpdatePacket struct {
-		ClientId      int
-		Players       []Player
+		ClientId      string
+		Players       map[string]Player
 		PeaCrds       []Cord
 		StartTime     time.Time
 		PlusOneActive bool
@@ -103,7 +103,7 @@ func NewGame(orgTrm *term.State) (*Game, error) {
 		return &Game{}, err
 	}
 
-	gm.State.Players = []Player{{
+	gm.State.Players = map[string]Player{"0": {
 		Crd: Cord{X: int(gm.Screen.CurX / 2), Y: int(gm.Screen.CurY / 2)},
 		Dir: "right", CurDir: "right",
 		TailCrds: []Cord{},
@@ -159,17 +159,17 @@ func NewGameNoTUI() (*Game, error) {
 		},
 		Config: gameConfig{
 			LockFPSToTPS:  false,
-			ClientId:      0,
+			ClientId:      "0",
 			TargetTPS:     30,
 			TargetFPS:     60,
-			PlayerSpeed:   24, // Player moves 1 tile every `TargetTPS-PlayerSpeed` updates.
+			PlayerSpeed:   24, // TargetTPS-PlayerSpeed times per second.
 			PeaSpawnDelay: 5,
 			PeaSpawnLimit: 3,
 			PeaStartCount: 1,
 			PlusOneDelay:  1,
 		},
 		State: gameState{
-			Players:       []Player{},
+			Players:       map[string]Player{},
 			PeaCrds:       []Cord{},
 			StartTime:     time.Now(),
 			PlusOneActive: false,
@@ -241,11 +241,12 @@ func (game *Game) statsBar() {
 }
 
 func (game *Game) HandleInput(in []byte) {
+	playerState := game.State.Players[game.Config.ClientId]
 	if slices.Equal(in, game.KeyBinds.CTRL_C) || slices.Equal(in, game.KeyBinds.CTRL_D) || slices.Equal(in, game.KeyBinds.Q) {
 		stopping = true
 		return
 
-	} else if game.State.Players[game.Config.ClientId].IsGameOver {
+	} else if playerState.IsGameOver {
 		return
 
 	} else if (slices.Equal(in, game.KeyBinds.ESC) || slices.Equal(in, game.KeyBinds.P)) && game.Config.Connection == nil {
@@ -259,14 +260,14 @@ func (game *Game) HandleInput(in []byte) {
 		return
 	}
 
-	dir := game.State.Players[game.Config.ClientId].Dir
-	if !paused && game.State.Players[game.Config.ClientId].CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.UP)) {
+	dir := playerState.Dir
+	if !paused && playerState.CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.UP)) {
 		dir = "up"
-	} else if !paused && game.State.Players[game.Config.ClientId].CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.RIGHT)) {
+	} else if !paused && playerState.CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.RIGHT)) {
 		dir = "right"
-	} else if !paused && game.State.Players[game.Config.ClientId].CurDir != "up" && (slices.Equal(in, game.KeyBinds.S) || slices.Equal(in, game.KeyBinds.J) || slices.Equal(in, game.KeyBinds.DOWN)) {
+	} else if !paused && playerState.CurDir != "up" && (slices.Equal(in, game.KeyBinds.S) || slices.Equal(in, game.KeyBinds.J) || slices.Equal(in, game.KeyBinds.DOWN)) {
 		dir = "down"
-	} else if !paused && game.State.Players[game.Config.ClientId].CurDir != "right" && (slices.Equal(in, game.KeyBinds.A) || slices.Equal(in, game.KeyBinds.H) || slices.Equal(in, game.KeyBinds.LEFT)) {
+	} else if !paused && playerState.CurDir != "right" && (slices.Equal(in, game.KeyBinds.A) || slices.Equal(in, game.KeyBinds.H) || slices.Equal(in, game.KeyBinds.LEFT)) {
 		dir = "left"
 	}
 
@@ -274,70 +275,78 @@ func (game *Game) HandleInput(in []byte) {
 		game.Config.Connection.Write([]byte(dir + "\n"))
 		return
 	}
-	game.State.Players[game.Config.ClientId].Dir = dir
+
+	playerState.Dir = dir
+	game.State.Players[game.Config.ClientId] = playerState
 }
 
-func (game *Game) UpdatePlayer(id int) {
-	oldCords := game.State.Players[id].Crd
-	if game.State.Players[id].Dir == "up" {
-		game.State.Players[id].Crd.Y -= 1
-	} else if game.State.Players[id].Dir == "right" {
-		game.State.Players[id].Crd.X += 1
-	} else if game.State.Players[id].Dir == "down" {
-		game.State.Players[id].Crd.Y += 1
-	} else if game.State.Players[id].Dir == "left" {
-		game.State.Players[id].Crd.X -= 1
-	}
-	game.State.Players[id].CurDir = game.State.Players[id].Dir
+func (game *Game) UpdatePlayer(id string) {
+	playerState := game.State.Players[id]
 
-	if game.State.Players[id].Crd.X <= 0 {
-		game.State.Players[id].Crd.X = game.Screen.CurX - 1
-	} else if game.State.Players[id].Crd.X >= game.Screen.CurX {
-		game.State.Players[id].Crd.X = 1
-	} else if game.State.Players[id].Crd.Y <= 0 {
-		game.State.Players[id].Crd.Y = game.Screen.CurY - 1
-	} else if game.State.Players[id].Crd.Y >= game.Screen.CurY {
-		game.State.Players[id].Crd.Y = 1
+	oldCords := playerState.Crd
+	if playerState.Dir == "up" {
+		playerState.Crd.Y -= 1
+	} else if playerState.Dir == "right" {
+		playerState.Crd.X += 1
+	} else if playerState.Dir == "down" {
+		playerState.Crd.Y += 1
+	} else if playerState.Dir == "left" {
+		playerState.Crd.X -= 1
+	}
+	playerState.CurDir = playerState.Dir
+
+	if playerState.Crd.X <= 0 {
+		playerState.Crd.X = game.Screen.CurX - 1
+	} else if playerState.Crd.X >= game.Screen.CurX {
+		playerState.Crd.X = 1
+	} else if playerState.Crd.Y <= 0 {
+		playerState.Crd.Y = game.Screen.CurY - 1
+	} else if playerState.Crd.Y >= game.Screen.CurY {
+		playerState.Crd.Y = 1
 	}
 
-	val, err := game.Screen.GetColRow(game.State.Players[id].Crd.X, game.State.Players[id].Crd.Y)
-	if err != nil { // Player most likely downscaled extremly fast, skip update as the current frame is unreliable.
+	val, err := game.Screen.GetColRow(playerState.Crd.X, playerState.Crd.Y)
+	if err != nil {
+		game.State.Players[id] = playerState
 		return
 	}
 
 	if val == game.Objects.Player {
-		game.State.Players[id].Crd = oldCords
-		game.State.Players[id].IsGameOver = true
+		playerState.Crd = oldCords
+		playerState.IsGameOver = true
 		game.Screen.H.RenderString("Game", 2, 2, game.Objects.Warning)
 		game.Screen.H.RenderString("Over", 8, 8, game.Objects.Warning)
+
+		game.State.Players[id] = playerState
 		return
 	}
 
 	if val == game.Objects.Pea {
 		game.State.PeaCrds = slices.DeleteFunc(game.State.PeaCrds, func(cord Cord) bool {
-			return cord == Cord{X: game.State.Players[id].Crd.X, Y: game.State.Players[id].Crd.Y}
+			return cord == Cord{X: playerState.Crd.X, Y: playerState.Crd.Y}
 		})
 
-		game.State.Players[id].TailCrds = append(game.State.Players[id].TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
+		playerState.TailCrds = append(playerState.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
 
 		game.State.PlusOneActive = true
 		game.Screen.H.RenderCordsIf(screen.Chars.Plus, 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 		game.Screen.H.RenderCordsIf(screen.Chars.One, 8, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 
 	} else {
-		if len(game.State.Players[id].TailCrds) > 0 {
-			game.State.Players[id].TailCrds = append(game.State.Players[id].TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
-			oldCords = game.State.Players[id].TailCrds[0]
-			game.State.Players[id].TailCrds = slices.Delete(game.State.Players[id].TailCrds, 0, 1)
+		if len(playerState.TailCrds) > 0 {
+			playerState.TailCrds = append(playerState.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
+			oldCords = playerState.TailCrds[0]
+			playerState.TailCrds = slices.Delete(playerState.TailCrds, 0, 1)
 		}
 		game.Screen.SetColRow(oldCords.X, oldCords.Y, game.Objects.Empty)
 	}
 
-	game.Screen.SetColRow(game.State.Players[id].Crd.X, game.State.Players[id].Crd.Y, game.Objects.Player)
+	game.Screen.SetColRow(playerState.Crd.X, playerState.Crd.Y, game.Objects.Player)
+	game.State.Players[id] = playerState
 }
 
 func (game *Game) SpawnPea() {
-	for i := 1; i < 10; i++ {
+	for i := 1; i < 100; i++ {
 		cord := Cord{X: rand.IntN(game.Screen.CurX-1) + 1, Y: rand.IntN(game.Screen.CurY-1) + 1}
 		val, _ := game.Screen.GetColRow(cord.X, cord.Y)
 		if val == game.Objects.Empty {
@@ -397,7 +406,7 @@ func (game *Game) loopSingle(iteration int) {
 		game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
 		game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
 
-		game.UpdatePlayer(0)
+		game.UpdatePlayer("0")
 	}
 
 	if iteration%updateFramePea == 0 {
