@@ -113,6 +113,13 @@ func NewGame(orgTrm *term.State) (*Game, error) {
 		gm.Screen.SetRow(i, gm.Objects.Wall)
 	}
 
+	for i := 0; i <= gm.Screen.CurX; i++ {
+		gm.Screen.SetCol(i, gm.Objects.Empty)
+	}
+	for i := 0; i <= gm.Screen.CurY; i++ {
+		gm.Screen.SetRow(i, gm.Objects.Empty)
+	}
+
 	gm.Screen.SetCol(0, gm.Objects.Wall)
 	gm.Screen.SetRow(0, gm.Objects.Wall)
 	gm.Screen.SetCol(gm.Screen.CurX, gm.Objects.Wall)
