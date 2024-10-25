@@ -36,7 +36,7 @@ func Run() {
 	originalTrm = oldState
 	defer func() { stopping = true; term.Restore(int(os.Stdin.Fd()), originalTrm) }()
 
-	gm, err := game.NewGame(originalTrm)
+	gm, err := game.NewClient(originalTrm)
 	if err != nil {
 		panic(err)
 	}

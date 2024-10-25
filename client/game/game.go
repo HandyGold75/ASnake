@@ -87,70 +87,8 @@ var (
 	}{}, "")
 )
 
-func NewGame(orgTrm *term.State) (*Game, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return &Game{}, errors.New("stdin/ stdout should be a terminal")
-	}
-
-	originalTrm = orgTrm
-	trm = term.NewTerminal(struct {
-		io.Reader
-		io.Writer
-	}{os.Stdin, os.Stdout}, "")
-
-	gm, err := NewGameNoTUI()
-	if err != nil {
-		return &Game{}, err
-	}
-
-	gm.State.Players = map[string]Player{"0": {
-		Crd: Cord{X: int(gm.Screen.CurX / 2), Y: int(gm.Screen.CurY / 2)},
-		Dir: "right", CurDir: "right",
-		TailCrds: []Cord{},
-	}}
-
-	for i := 1; i < gm.Screen.CurX; i++ {
-		gm.Screen.SetRow(i, gm.Objects.Wall)
-	}
-
-	for i := 0; i <= gm.Screen.CurX; i++ {
-		gm.Screen.SetCol(i, gm.Objects.Empty)
-	}
-	for i := 0; i <= gm.Screen.CurY; i++ {
-		gm.Screen.SetRow(i, gm.Objects.Empty)
-	}
-
-	gm.Screen.SetCol(0, gm.Objects.Wall)
-	gm.Screen.SetRow(0, gm.Objects.Wall)
-	gm.Screen.SetCol(gm.Screen.CurX, gm.Objects.Wall)
-	gm.Screen.SetRow(gm.Screen.CurY, gm.Objects.Wall)
-
-	gm.Screen.SetColRow(gm.State.Players[gm.Config.ClientId].Crd.X, gm.State.Players[gm.Config.ClientId].Crd.Y, gm.Objects.Player)
-
-	gm.Screen.OnResizeCallback = func(scr *screen.Screen) {
-		for i := 0; i <= gm.Screen.CurX; i++ {
-			gm.Screen.SetCol(i, gm.Objects.Empty)
-		}
-		for i := 0; i <= gm.Screen.CurY; i++ {
-			gm.Screen.SetRow(i, gm.Objects.Empty)
-		}
-
-		scr.SetColRow(gm.State.Players[gm.Config.ClientId].Crd.X, gm.State.Players[gm.Config.ClientId].Crd.Y, gm.Objects.Player)
-
-		for _, cord := range gm.State.Players[gm.Config.ClientId].TailCrds {
-			scr.SetColRow(cord.X, cord.Y, gm.Objects.Player)
-		}
-
-		for _, cord := range gm.State.PeaCrds {
-			scr.SetColRow(cord.X, cord.Y, gm.Objects.Pea)
-		}
-	}
-
-	return gm, nil
-}
-
-func NewGameNoTUI() (*Game, error) {
-	game := &Game{
+func newGame() *Game {
+	return &Game{
 		KeyBinds: keyBinds{
 			ESC: []byte{27, 0, 0}, P: []byte{112, 0, 0},
 			CTRL_C: []byte{3, 0, 0}, CTRL_D: []byte{4, 0, 0}, Q: []byte{113, 0, 0},
@@ -187,9 +125,23 @@ func NewGameNoTUI() (*Game, error) {
 			FpsTracker:    0,
 		},
 	}
+}
+
+func NewClient(orgTrm *term.State) (*Game, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return &Game{}, errors.New("stdin/ stdout should be a terminal")
+	}
+
+	originalTrm = orgTrm
+	trm = term.NewTerminal(struct {
+		io.Reader
+		io.Writer
+	}{os.Stdin, os.Stdout}, "")
+
+	game := newGame()
 
 	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
-	scr, err := screen.NewScreen(2560, 1440, map[uint8][]byte{
+	scr, err := screen.NewScreen(2560, 1440, false, map[uint8][]byte{
 		game.Objects.Default: append(trm.Escape.Magenta, ResetBytes...),
 		game.Objects.Empty:   []byte("  "),
 		game.Objects.Wall:    append(trm.Escape.Black, ResetBytes...),
@@ -201,8 +153,77 @@ func NewGameNoTUI() (*Game, error) {
 	if err != nil {
 		return &Game{}, err
 	}
-
 	game.Screen = scr
+
+	game.State.Players = map[string]Player{"0": {
+		Crd: Cord{X: int(game.Screen.CurX / 2), Y: int(game.Screen.CurY / 2)},
+		Dir: "right", CurDir: "right",
+		TailCrds: []Cord{},
+	}}
+
+	for i := 0; i <= game.Screen.CurX; i++ {
+		game.Screen.SetCol(i, game.Objects.Empty)
+	}
+
+	game.Screen.SetCol(0, game.Objects.Wall)
+	game.Screen.SetRow(0, game.Objects.Wall)
+	game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+	game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
+
+	game.Screen.SetColRow(game.State.Players[game.Config.ClientId].Crd.X, game.State.Players[game.Config.ClientId].Crd.Y, game.Objects.Player)
+
+	game.Screen.OnResizeCallback = func(scr *screen.Screen) {
+		for i := 0; i <= game.Screen.CurX; i++ {
+			game.Screen.SetCol(i, game.Objects.Empty)
+		}
+		for i := 0; i <= game.Screen.CurY; i++ {
+			game.Screen.SetRow(i, game.Objects.Empty)
+		}
+
+		scr.SetColRow(game.State.Players[game.Config.ClientId].Crd.X, game.State.Players[game.Config.ClientId].Crd.Y, game.Objects.Player)
+
+		for _, cord := range game.State.Players[game.Config.ClientId].TailCrds {
+			scr.SetColRow(cord.X, cord.Y, game.Objects.Player)
+		}
+
+		for _, cord := range game.State.PeaCrds {
+			scr.SetColRow(cord.X, cord.Y, game.Objects.Pea)
+		}
+	}
+
+	return game, nil
+}
+
+func NewServer() (*Game, error) {
+	game := newGame()
+
+	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
+	scr, err := screen.NewScreen(50, 50, true, map[uint8][]byte{
+		game.Objects.Default: append(trm.Escape.Magenta, ResetBytes...),
+		game.Objects.Empty:   []byte("  "),
+		game.Objects.Wall:    append(trm.Escape.Black, ResetBytes...),
+		game.Objects.PlusOne: append(trm.Escape.Green, ResetBytes...),
+		game.Objects.Warning: append(trm.Escape.Red, ResetBytes...),
+		game.Objects.Pea:     append(trm.Escape.Yellow, ResetBytes...),
+		game.Objects.Player:  append(trm.Escape.White, ResetBytes...),
+	}, trm)
+	if err != nil {
+		return &Game{}, err
+	}
+	game.Screen = scr
+
+	for i := 1; i < game.Screen.CurX; i++ {
+		game.Screen.SetRow(i, game.Objects.Empty)
+	}
+
+	game.Screen.SetCol(0, game.Objects.Wall)
+	game.Screen.SetRow(0, game.Objects.Wall)
+	game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+	game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
+
+	game.Config.PeaSpawnDelay = 3
+	game.Config.PeaSpawnLimit = 12
+	game.Config.PeaStartCount = 4
 
 	return game, nil
 }
@@ -233,7 +254,7 @@ func (game *Game) statsBar() {
 		timeStr,
 		len(game.State.Players[game.Config.ClientId].TailCrds),
 		sizeXColor+strconv.Itoa(game.Screen.CurX)+string(trm.Escape.Reset),
-		sizeYColor+strconv.Itoa(game.Screen.MaxY)+string(trm.Escape.Reset),
+		sizeYColor+strconv.Itoa(game.Screen.CurY)+string(trm.Escape.Reset),
 		fpsColor+strconv.Itoa(game.State.FpsTracker)+string(trm.Escape.Reset),
 		tpsColor+strconv.Itoa(game.State.TpsTracker)+string(trm.Escape.Reset),
 	)

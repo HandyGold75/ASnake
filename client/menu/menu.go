@@ -255,7 +255,7 @@ func NewMenu(gamePnt *game.Game) (*Menu, error) {
 	}
 
 	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
-	scr, err := screen.NewScreen(1000, 1000, map[uint8][]byte{
+	scr, err := screen.NewScreen(2560, 1440, false, map[uint8][]byte{
 		menu.Objects.Default:    append(trm.Escape.Magenta, ResetBytes...),
 		menu.Objects.Empty:      []byte("  "),
 		menu.Objects.Background: append(trm.Escape.Black, ResetBytes...),

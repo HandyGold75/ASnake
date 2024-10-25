@@ -20,6 +20,7 @@ type (
 	Screen struct {
 		Rows                   []row
 		CurX, CurY, MaxX, MaxY int
+		ForceMax               bool
 		CharMap                map[uint8][]byte
 		Terminal               *term.Terminal
 		OnResizeCallback       func(f *Screen)
@@ -39,13 +40,18 @@ var (
 	}
 )
 
-func NewScreen(maxX, maxY int, charMap map[uint8][]byte, terminal *term.Terminal) (*Screen, error) {
+func NewScreen(maxX, maxY int, forceMax bool, charMap map[uint8][]byte, terminal *term.Terminal) (*Screen, error) {
 	x, y, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return &Screen{}, err
 	}
 	x = min(int(x/2), maxX)
 	y = min(y-1, maxY)
+
+	if forceMax {
+		x = maxX
+		y = maxY
+	}
 
 	rows := []row{}
 	for i := 0; i < y; i++ {
@@ -55,6 +61,7 @@ func NewScreen(maxX, maxY int, charMap map[uint8][]byte, terminal *term.Terminal
 	f := &Screen{
 		Rows: rows,
 		CurX: x - 1, CurY: y - 1, MaxX: maxX, MaxY: maxY,
+		ForceMax:         forceMax,
 		CharMap:          charMap,
 		Terminal:         terminal,
 		OnResizeCallback: func(f *Screen) {},
@@ -132,6 +139,11 @@ func (f *Screen) Reload() error {
 	f.CurX = min(int(x/2)-1, f.MaxX)
 	f.CurY = min(y-2, f.MaxY)
 
+	if f.ForceMax {
+		f.CurX = f.MaxX
+		f.CurY = f.MaxY
+	}
+
 	f.Rows = []row{}
 	for i := 0; i <= f.CurY; i++ {
 		f.Rows = append(f.Rows, make(row, f.CurX+1))
@@ -150,6 +162,11 @@ func (f *Screen) Draw() error {
 		if f.CurX != min(int(x/2)-1, f.MaxX) || f.CurY != min(y-2, f.MaxY) {
 			f.CurX = min(int(x/2)-1, f.MaxX)
 			f.CurY = min(y-2, f.MaxY)
+
+			if f.ForceMax {
+				f.CurX = f.MaxX
+				f.CurY = f.MaxY
+			}
 
 			f.Rows = []row{}
 			for i := 0; i <= f.CurY; i++ {

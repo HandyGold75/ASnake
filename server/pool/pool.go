@@ -5,8 +5,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"net"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -25,28 +27,10 @@ type (
 )
 
 func NewPool(lgr *logger.Logger) (*Pool, error) {
-	gm, err := game.NewGameNoTUI()
+	gm, err := game.NewServer()
 	if err != nil {
 		return &Pool{}, err
 	}
-	gm.Screen.MaxX = 50
-	gm.Screen.MaxY = 50
-	gm.Screen.Reload()
-	gm.Screen.CurX = 50
-	gm.Screen.CurY = 50
-
-	for i := 1; i < gm.Screen.CurX; i++ {
-		gm.Screen.SetRow(i, gm.Objects.Empty)
-	}
-
-	gm.Screen.SetCol(0, gm.Objects.Wall)
-	gm.Screen.SetRow(0, gm.Objects.Wall)
-	gm.Screen.SetCol(gm.Screen.CurX, gm.Objects.Wall)
-	gm.Screen.SetRow(gm.Screen.CurY, gm.Objects.Wall)
-
-	gm.Config.PeaSpawnDelay = 3
-	gm.Config.PeaSpawnLimit = 12
-	gm.Config.PeaStartCount = 4
 
 	p := &Pool{
 		Clients: map[string]*net.Conn{},
@@ -279,6 +263,10 @@ func (pool *Pool) loop() {
 }
 
 func (pool *Pool) sendUpdate() error {
+	if slices.Contains(os.Args, "-d") || slices.Contains(os.Args, "-debug") {
+		fmt.Println(pool.Game.Screen.Rows)
+	}
+
 	update := game.UpdatePacket{
 		Players:       pool.Game.State.Players,
 		PeaCrds:       pool.Game.State.PeaCrds,
