@@ -1,10 +1,10 @@
 module ASnake
 
-go 1.23.1
+go 1.23.3
 
 require (
-	github.com/HandyGold75/GOLib/logger v0.0.0-20241009120328-f1577c9597cd
-	golang.org/x/term v0.25.0
+	github.com/HandyGold75/GOLib/logger v0.0.0-20241118134854-2fea11e6135e
+	golang.org/x/term v0.26.0
 )
 
-require golang.org/x/sys v0.26.0 // indirect
+require golang.org/x/sys v0.27.0 // indirect
