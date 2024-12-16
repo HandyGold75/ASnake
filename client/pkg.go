@@ -40,6 +40,8 @@ func Run() {
 	if err != nil {
 		panic(err)
 	}
+	defer gm.Close()
+
 	mn, err := menu.NewMenu(gm)
 	if err != nil {
 		panic(err)
