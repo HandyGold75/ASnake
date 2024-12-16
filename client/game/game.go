@@ -557,3 +557,9 @@ func (game *Game) Start() error {
 
 	return nil
 }
+
+func (game *Game) Close() {
+	if game.Config.Connection != nil {
+		game.Config.Connection.Close()
+	}
+}
