@@ -1,2 +1,4 @@
-ASnake
-ASnake.log
+*-gitignore
+*.bin
+*.exe
+*.log
