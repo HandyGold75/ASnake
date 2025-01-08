@@ -110,7 +110,7 @@ func newGame() *Game {
 			ClientId:      "0",
 			TargetTPS:     30,
 			TargetFPS:     60,
-			PlayerSpeed:   24, // TargetTPS-PlayerSpeed times per second.
+			PlayerSpeed:   5,
 			PeaSpawnDelay: 5,
 			PeaSpawnLimit: 3,
 			PeaStartCount: 1,
@@ -274,7 +274,6 @@ func (game *Game) HandleInput(in []byte) {
 
 	} else if playerState.IsGameOver {
 		return
-
 	} else if (slices.Equal(in, game.KeyBinds.ESC) || slices.Equal(in, game.KeyBinds.P)) && game.Config.Connection == nil {
 		paused = !paused
 		if paused {
@@ -383,6 +382,9 @@ func (game *Game) SpawnPea() {
 	}
 }
 
+// TODO: Stop render updates during game updates and vice virsa due to possible race condition.
+// Error: `fatal error: concurrent map read and map write`
+// Repeatable when using high TargetTPS and/ or TargetFPS.
 func (game *Game) loopRender() {
 	defer func() { stopping = true; term.Restore(int(os.Stdin.Fd()), originalTrm) }()
 
@@ -403,7 +405,7 @@ func (game *Game) loopRender() {
 func (game *Game) loopSingle(iteration int) {
 	t := time.Now()
 
-	updateFramePlayer := max(1, game.Config.TargetTPS-game.Config.PlayerSpeed)
+	updateFramePlayer := max(1, game.Config.TargetTPS/game.Config.PlayerSpeed)
 	updateFramePea := max(1, game.Config.PeaSpawnDelay*game.Config.TargetTPS)
 	updateFramePlusOne := max(1, game.Config.PlusOneDelay*game.Config.TargetTPS)
 
