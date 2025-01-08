@@ -71,7 +71,7 @@ var (
 	}
 
 	mainSelections   = []string{"Start", "Multiplayer", "Options", "Exit"}
-	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count", "Low Performance"}
+	optionSelections = []string{"Player Speed", "Spawn Delay", "Spawn Limit", "Spawn Count", "Low Performance", "Target TPS", "Target FPS"}
 	mpSelections     = []string{"IP 1/4", "IP 2/4", "IP 3/4", "IP 4/4", "Port", "Connect"}
 
 	currentSelection    = ""
@@ -187,6 +187,8 @@ var (
 
 			menu.updateMenu("")
 		},
+		"Target TPS": func(menu *Menu) { settingSetter(menu, &gm.Config.TargetTPS, 100000, optionSelections) },
+		"Target FPS": func(menu *Menu) { settingSetter(menu, &gm.Config.TargetFPS, 100000, optionSelections) },
 	}
 )
 
@@ -293,7 +295,6 @@ func (menu *Menu) SettingInput(in []byte) bool {
 
 	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.UP) {
 		return false
-
 	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
 		optionSelectedCallback(currentSelection, true)
 
@@ -308,7 +309,6 @@ func (menu *Menu) SettingInput(in []byte) bool {
 
 	} else if slices.Equal(in, menu.KeyBinds.S) || slices.Equal(in, menu.KeyBinds.J) || slices.Equal(in, menu.KeyBinds.DOWN) {
 		return false
-
 	} else if slices.Equal(in, menu.KeyBinds.A) || slices.Equal(in, menu.KeyBinds.H) || slices.Equal(in, menu.KeyBinds.LEFT) {
 		optionSelectedCallback(currentSelection, false)
 
