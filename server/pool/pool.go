@@ -211,7 +211,7 @@ func (pool *Pool) stop() {
 }
 
 func (pool *Pool) loop() {
-	updateFramePlayer := max(1, pool.Game.Config.TargetTPS-pool.Game.Config.PlayerSpeed)
+	updateFramePlayer := max(1, pool.Game.Config.TargetTPS/pool.Game.Config.PlayerSpeed)
 	updateFramePea := max(1, pool.Game.Config.PeaSpawnDelay*pool.Game.Config.TargetTPS)
 	updateFramePlusOne := max(1, pool.Game.Config.PlusOneDelay*pool.Game.Config.TargetTPS)
 
