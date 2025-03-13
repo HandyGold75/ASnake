@@ -242,7 +242,7 @@ func NewMenu(gamePnt *game.Game) (*Menu, error) {
 			RETURN: []byte{13, 0, 0},
 			ESC:    []byte{27, 0, 0}, CTRL_C: []byte{3, 0, 0}, CTRL_D: []byte{4, 0, 0}, Q: []byte{113, 0, 0},
 			W: []byte{119, 0, 0}, D: []byte{100, 0, 0}, S: []byte{115, 0, 0}, A: []byte{97, 0, 0},
-			K: []byte{108, 0, 0}, L: []byte{107, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
+			K: []byte{107, 0, 0}, L: []byte{108, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
 			UP: []byte{27, 91, 65}, RIGHT: []byte{27, 91, 67}, DOWN: []byte{27, 91, 66}, LEFT: []byte{27, 91, 68},
 			Zero: []byte{48, 0, 0}, One: []byte{49, 0, 0}, Two: []byte{50, 0, 0}, Three: []byte{51, 0, 0}, For: []byte{52, 0, 0}, Five: []byte{53, 0, 0}, Six: []byte{54, 0, 0}, Seven: []byte{55, 0, 0}, Eight: []byte{56, 0, 0}, Nine: []byte{57, 0, 0},
 		},
@@ -293,9 +293,9 @@ func (menu *Menu) SettingInput(in []byte) bool {
 		stop <- "Exit"
 		return true
 
-	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.UP) {
+	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.UP) {
 		return false
-	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
+	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
 		optionSelectedCallback(currentSelection, true)
 
 		inputCallback = func([]byte) bool { return false }
@@ -355,9 +355,9 @@ func (menu *Menu) HandleInput(in []byte) {
 
 	if slices.Equal(in, menu.KeyBinds.CTRL_C) || slices.Equal(in, menu.KeyBinds.CTRL_D) || slices.Equal(in, menu.KeyBinds.ESC) || slices.Equal(in, menu.KeyBinds.Q) {
 		stop <- "Exit"
-	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.UP) {
+	} else if slices.Equal(in, menu.KeyBinds.W) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.UP) {
 		menu.updateMenu("up")
-	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.K) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
+	} else if slices.Equal(in, menu.KeyBinds.D) || slices.Equal(in, menu.KeyBinds.L) || slices.Equal(in, menu.KeyBinds.RIGHT) || slices.Equal(in, menu.KeyBinds.RETURN) {
 		f, ok := selectionActions[currentSelection]
 		if ok {
 			f(menu)

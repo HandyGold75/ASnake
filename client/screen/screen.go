@@ -32,13 +32,11 @@ type (
 	errScreens struct{ XOutOfBounds, YOutOfBounds, NoRowsFound, InvalidSTInOut error }
 )
 
-var (
-	ErrScreens = errScreens{
-		XOutOfBounds: errors.New("x is out of bounds"),
-		YOutOfBounds: errors.New("y is out of bounds"),
-		NoRowsFound:  errors.New("no rows found"),
-	}
-)
+var ErrScreens = errScreens{
+	XOutOfBounds: errors.New("x is out of bounds"),
+	YOutOfBounds: errors.New("y is out of bounds"),
+	NoRowsFound:  errors.New("no rows found"),
+}
 
 func NewScreen(maxX, maxY int, forceMax bool, charMap map[uint8][]byte, terminal *term.Terminal) (*Screen, error) {
 	x, y, err := term.GetSize(int(os.Stdin.Fd()))
@@ -210,7 +208,6 @@ func (f *Screen) Draw() error {
 	if _, err := f.Terminal.Write(append([]byte("\033[0;0H"), bytes.Join(lines, []byte("\r\n"))...)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
