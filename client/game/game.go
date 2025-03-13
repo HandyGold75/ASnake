@@ -93,7 +93,7 @@ func newGame() *Game {
 			ESC: []byte{27, 0, 0}, P: []byte{112, 0, 0},
 			CTRL_C: []byte{3, 0, 0}, CTRL_D: []byte{4, 0, 0}, Q: []byte{113, 0, 0},
 			W: []byte{119, 0, 0}, D: []byte{100, 0, 0}, S: []byte{115, 0, 0}, A: []byte{97, 0, 0},
-			K: []byte{108, 0, 0}, L: []byte{107, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
+			K: []byte{107, 0, 0}, L: []byte{108, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
 			UP: []byte{27, 91, 65}, RIGHT: []byte{27, 91, 67}, DOWN: []byte{27, 91, 66}, LEFT: []byte{27, 91, 68},
 		},
 		Objects: gameObjects{
@@ -286,9 +286,9 @@ func (game *Game) HandleInput(in []byte) {
 	}
 
 	dir := playerState.Dir
-	if !paused && playerState.CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.UP)) {
+	if !paused && playerState.CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.UP)) {
 		dir = "up"
-	} else if !paused && playerState.CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.RIGHT)) {
+	} else if !paused && playerState.CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.RIGHT)) {
 		dir = "right"
 	} else if !paused && playerState.CurDir != "up" && (slices.Equal(in, game.KeyBinds.S) || slices.Equal(in, game.KeyBinds.J) || slices.Equal(in, game.KeyBinds.DOWN)) {
 		dir = "down"
