@@ -3,13 +3,17 @@ package main
 import (
 	ASnakeClient "ASnake/client"
 	ASnakeServer "ASnake/server"
-	"os"
+
+	"github.com/HandyGold75/GOLib/argp"
 )
 
+var args = argp.ParseArgs(struct {
+	Help   bool `switch:"h,-help"   opts:"help" help:"Another game of Snake."`
+	Server bool `switch:"s,-server"             help:"Start as a server instace."`
+}{})
+
 func main() {
-	if len(os.Args) > 1 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
-		os.Stdout.WriteString("Another game of Snake.\r\nUse -s or --server to start a server instance.\r\n")
-	} else if len(os.Args) > 1 && (os.Args[1] == "-s" || os.Args[1] == "--server") {
+	if args.Server {
 		ASnakeServer.Run()
 	} else {
 		ASnakeClient.Run()

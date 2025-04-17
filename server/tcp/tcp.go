@@ -22,14 +22,12 @@ type (
 	}
 )
 
-var (
-	MaxClients = 4
-)
+var MaxClients = 4
 
 func NewServer(ip string, port uint16) *Server {
 	lgr := logger.New("ASnake.log")
 	lgr.UseSeperators = false
-	lgr.CharCountPerMsg = 16
+	lgr.CharCountPerPart = 16
 
 	sv := &Server{
 		Port:  port,
