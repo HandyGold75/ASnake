@@ -5,6 +5,7 @@ import (
 	"ASnake/client/menu"
 	"os"
 
+	"github.com/HandyGold75/GOLib/tui"
 	"golang.org/x/term"
 )
 
@@ -28,7 +29,20 @@ func listenKeys() {
 	}
 }
 
+func temp() {
+	mm, err := tui.NewMenuBasic("ASnake")
+	if err != nil {
+		panic(err)
+	}
+
+	mm.Menu.NewMenu()
+
+	mm.Run()
+}
+
 func Run() {
+	temp()
+
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		panic(err)
