@@ -17,7 +17,9 @@ import (
 
 func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
 	mode = ""
-	mm := tui.NewMenuBasic("ASnake")
+
+	tui.Defaults.Align = tui.AlignLeft
+	mm := tui.NewMenuBulky("ASnake")
 
 	sp := mm.Menu.NewMenu("SinglePlayer")
 	sp.NewAction("Start", func() { mode = "singleplayer" })
@@ -30,7 +32,7 @@ func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
 	spPeaStartCount := sp.NewDigit("Spawn Count", 0, 1, 99999)
 
 	mp := mm.Menu.NewMenu("MultiPlayer")
-	mp.NewAction("Start", func() { mode = "multiplayer" })
+	mp.NewAction("Connect", func() { mode = "multiplayer" })
 	mpIP := mp.NewIPv4("IP", "84.25.253.77")
 	mpPort := mp.NewDigit("Port", 17530, 0, 65535)
 
@@ -190,7 +192,14 @@ func Run() {
 			panic(err)
 		}
 	case "multiplayer":
+		term.Restore(int(os.Stdin.Fd()), oldState)
+
 		if err := connect(gm, ipStr); err != nil {
+			panic(err)
+		}
+
+		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+		if err != nil {
 			panic(err)
 		}
 
