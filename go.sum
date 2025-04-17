@@ -2,6 +2,8 @@ github.com/HandyGold75/GOLib/argp v0.0.0-20250417113003-b3a4fd136eb5 h1:c3dSuUEi
 github.com/HandyGold75/GOLib/argp v0.0.0-20250417113003-b3a4fd136eb5/go.mod h1:bX5ifC6YaSGoRr245Ir6Qd9wt7Zeb1Jn6AkQsH91Vyg=
 github.com/HandyGold75/GOLib/logger v0.0.0-20250417113003-b3a4fd136eb5 h1:wpDSj2F1sJiziIMDMHxTi5Ua8mtne+ElOP7gGLOhG0I=
 github.com/HandyGold75/GOLib/logger v0.0.0-20250417113003-b3a4fd136eb5/go.mod h1:epSDoXg2k4SjqCLMb599ktL8ztk/jhnCoeGrH3OEDFw=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250417113003-b3a4fd136eb5 h1:QbmJC8Kg1y6heAGLjt68X56CKgT7B2DbIeH0fd7g9vY=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250417113003-b3a4fd136eb5/go.mod h1:KuGj16Wl8ptjAH2zM0pLV45B6Eek4lzx0zHIaGgIMkA=
 golang.org/x/sys v0.32.0 h1:s77OFDvIQeibCmezSnk/q6iAfkdiQaJi4VzroCFrN20=
 golang.org/x/sys v0.32.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
 golang.org/x/term v0.31.0 h1:erwDkOK1Msy6offm1mOgvspSkslFnIGsFnxOKoufg3o=

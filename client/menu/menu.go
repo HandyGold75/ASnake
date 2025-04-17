@@ -409,17 +409,6 @@ func (menu *Menu) updateMenu(dir string) {
 	menu.statsBar()
 }
 
-func (menu *Menu) TestText() {
-	menu.Screen.H.RenderString("ABCD EFGH IJKL M", 0, 0, menu.Objects.Text)
-	menu.Screen.H.RenderString("NOPQ RSTU VWXY Z", 0, 6, menu.Objects.Text)
-	for i := 0; i < 10; i++ {
-		menu.Screen.H.RenderString(strconv.Itoa(i), i*6, 12, menu.Objects.Text)
-	}
-	menu.Screen.H.RenderString("+/.", 0, 18, menu.Objects.Text)
-
-	menu.Screen.Draw()
-}
-
 func (menu *Menu) loop() string {
 	for {
 		select {
