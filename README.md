@@ -37,3 +37,16 @@ Minimal required play area (Multiplayer): 50x 50y.
   - Min: `0`; Max: `99999`
   - Ignored if Low Performance is used.
   - Some terminals don't like fast rendering and might flikker when set to high.
+
+## Args
+
+```text
+Usage: ASnake [-h] [-s]
+        Another game of Snake.
+
+Help
+  -h --help    <bool>    (help)
+Server
+  -s --server  <bool>
+        Start as a server instace.
+```

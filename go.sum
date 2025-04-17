@@ -1,5 +1,7 @@
-github.com/HandyGold75/GOLib/logger v0.0.0-20250407143924-5a268c0a73b3 h1:u4nOZW1NcObv0wLz85f7sllr3vVwWKE0sz4VhKDhNE8=
-github.com/HandyGold75/GOLib/logger v0.0.0-20250407143924-5a268c0a73b3/go.mod h1:ftZKjW59zMUPHypS1VS1YjjC56Ldpm4LUnE6UKvsalA=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250417113003-b3a4fd136eb5 h1:c3dSuUEiuPFQk5NHGrFLKQRs5pp87hpIo5s+HdfgcnI=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250417113003-b3a4fd136eb5/go.mod h1:bX5ifC6YaSGoRr245Ir6Qd9wt7Zeb1Jn6AkQsH91Vyg=
+github.com/HandyGold75/GOLib/logger v0.0.0-20250417113003-b3a4fd136eb5 h1:wpDSj2F1sJiziIMDMHxTi5Ua8mtne+ElOP7gGLOhG0I=
+github.com/HandyGold75/GOLib/logger v0.0.0-20250417113003-b3a4fd136eb5/go.mod h1:epSDoXg2k4SjqCLMb599ktL8ztk/jhnCoeGrH3OEDFw=
 golang.org/x/sys v0.32.0 h1:s77OFDvIQeibCmezSnk/q6iAfkdiQaJi4VzroCFrN20=
 golang.org/x/sys v0.32.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
 golang.org/x/term v0.31.0 h1:erwDkOK1Msy6offm1mOgvspSkslFnIGsFnxOKoufg3o=
