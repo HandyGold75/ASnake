@@ -3,6 +3,7 @@ package screen
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"slices"
 	"unicode"
@@ -19,8 +20,6 @@ type (
 		Terminal               *term.Terminal
 		OnResizeCallback       func(f *Screen)
 	}
-
-	Cord struct{ X, Y int }
 )
 
 var (
@@ -28,7 +27,7 @@ var (
 	ErrYOutOfBounds = errors.New("y is out of bounds")
 	ErrNoRowsFound  = errors.New("no []uint8s found")
 
-	// t := []Cord{
+	// t := [2]int{
 	// 	{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 0}, {X: 3, Y: 0}, {X: 4, Y: 0},
 	// 	{X: 0, Y: 1}, {X: 1, Y: 1}, {X: 2, Y: 1}, {X: 3, Y: 1}, {X: 4, Y: 1},
 	// 	{X: 0, Y: 2}, {X: 1, Y: 2}, {X: 2, Y: 2}, {X: 3, Y: 2}, {X: 4, Y: 2},
@@ -36,7 +35,7 @@ var (
 	// 	{X: 0, Y: 4}, {X: 1, Y: 4}, {X: 2, Y: 4}, {X: 3, Y: 4}, {X: 4, Y: 4},
 	// }
 
-	CharMap = map[rune][]Cord{
+	CharMap = map[rune][][2]int{
 		'A':  {{1, 0}, {2, 0}, {3, 0}, {0, 1}, {4, 1}, {0, 2}, {1, 2}, {2, 2}, {3, 2}, {4, 2}, {0, 3}, {4, 3}, {0, 4}, {4, 4}},
 		'B':  {{0, 0}, {1, 0}, {2, 0}, {3, 0}, {0, 1}, {4, 1}, {0, 2}, {1, 2}, {2, 2}, {3, 2}, {0, 3}, {4, 3}, {0, 4}, {1, 4}, {2, 4}, {3, 4}},
 		'C':  {{1, 0}, {2, 0}, {3, 0}, {4, 0}, {0, 1}, {0, 2}, {0, 3}, {1, 4}, {2, 4}, {3, 4}, {4, 4}},
@@ -109,7 +108,7 @@ var (
 	}
 )
 
-func NewScreen(maxX, maxY int, forceMax bool, charMap map[uint8][]byte, terminal *term.Terminal) (*Screen, error) {
+func NewScreen(maxX, maxY int, forceMax bool, charMap map[uint8][]byte) (*Screen, error) {
 	x, y, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return &Screen{}, err
@@ -130,9 +129,12 @@ func NewScreen(maxX, maxY int, forceMax bool, charMap map[uint8][]byte, terminal
 	return &Screen{
 		Rows: rows,
 		CurX: x - 1, CurY: y - 1, MaxX: maxX, MaxY: maxY,
-		ForceMax:         forceMax,
-		CharMap:          charMap,
-		Terminal:         terminal,
+		ForceMax: forceMax,
+		CharMap:  charMap,
+		Terminal: term.NewTerminal(struct {
+			io.Reader
+			io.Writer
+		}{os.Stdin, os.Stdout}, ""),
 		OnResizeCallback: func(f *Screen) {},
 	}, nil
 }
@@ -303,20 +305,20 @@ func (f *Screen) RenderStringIf(str string, offsetX, offsetY int, state uint8, s
 	}
 }
 
-func (f *Screen) RenderCords(cords []Cord, offsetX, offsetY int, state uint8) {
+func (f *Screen) RenderCords(cords [][2]int, offsetX, offsetY int, state uint8) {
 	for _, cord := range cords {
-		_ = f.SetColRow(cord.X+offsetX, cord.Y+offsetY, state)
+		_ = f.SetColRow(cord[0]+offsetX, cord[1]+offsetY, state)
 	}
 }
 
-func (f *Screen) RenderCordsIf(cords []Cord, offsetX, offsetY int, state uint8, set func(uint8) bool) {
+func (f *Screen) RenderCordsIf(cords [][2]int, offsetX, offsetY int, state uint8, set func(uint8) bool) {
 	for _, cord := range cords {
-		val, err := f.GetColRow(cord.X+offsetX, cord.Y+offsetY)
+		val, err := f.GetColRow(cord[0]+offsetX, cord[1]+offsetY)
 		if err != nil {
 			continue
 		}
 		if set(val) {
-			_ = f.SetColRow(cord.X+offsetX, cord.Y+offsetY, state)
+			_ = f.SetColRow(cord[0]+offsetX, cord[1]+offsetY, state)
 		}
 	}
 }
