@@ -7,18 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/HandyGold75/GOLib/argp"
 	"github.com/HandyGold75/GOLib/tui"
-	"golang.org/x/term"
 )
 
 var args = argp.ParseArgs(struct {
-	Help   bool `switch:"h,-help"   opts:"help" help:"Another game of Snake."`
-	Server bool `switch:"s,-server"             help:"Start as a server instace."`
+	Help       bool   `switch:"h,-help" opts:"help"        help:"Another game of Snake."`
+	Server     bool   `switch:"s,-server"                  help:"Start as a server instace."`
+	IP         string `switch:"i,-ip" default:"0.0.0.0"    help:"Listen on this ip when started as server."`
+	Port       uint16 `switch:"p,-port" default:"17530"    help:"Listen on this port when started as server."`
+	MaxClients int    `switch:"m,-max-clients" default:"4" help:"Max amount of clients per pool."`
 }{})
 
 func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
@@ -41,9 +42,6 @@ func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
 	mp.NewAction("Connect", func() { mode = "multiplayer" })
 	mpIP := mp.NewIPv4("IP", "84.25.253.77")
 	mpPort := mp.NewDigit("Port", 17530, 0, 65535)
-
-	sr := mm.Menu.NewMenu("Server")
-	sr.NewAction("Start", func() { mode = "server" })
 
 	if err := mm.Run(); err != nil {
 		return mode, "", err
@@ -153,18 +151,10 @@ func connect(gm *game.Game, ip string) error {
 }
 
 func Run() {
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	gm, err := game.NewClient()
 	if err != nil {
 		panic(err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-	gm, err := game.NewClient(oldState)
-	if err != nil {
-		panic(err)
-	}
-	defer gm.Close()
-
 	mode, ipStr, err := mainMenu(gm)
 	if err != nil {
 		panic(err)
@@ -172,72 +162,22 @@ func Run() {
 
 	switch mode {
 	case "singleplayer":
-		stop := make(chan bool)
-		go func() {
-			defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					in := make([]byte, 3)
-					_, err := os.Stdin.Read(in)
-					if err != nil {
-						panic(err)
-					}
-					gm.HandleInput(in)
-				}
-			}
-		}()
 		if err := gm.Start(); err != nil {
 			panic(err)
 		}
 	case "multiplayer":
-		term.Restore(int(os.Stdin.Fd()), oldState)
-
 		if err := connect(gm, ipStr); err != nil {
 			panic(err)
 		}
-
-		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-		if err != nil {
-			panic(err)
-		}
-
-		stop := make(chan bool)
-		go func() {
-			defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					in := make([]byte, 3)
-					_, err := os.Stdin.Read(in)
-					if err != nil {
-						panic(err)
-					}
-					gm.HandleInput(in)
-				}
-			}
-		}()
 		if err := gm.Start(); err != nil {
 			panic(err)
 		}
-	case "server":
-		term.Restore(int(os.Stdin.Fd()), oldState)
-		if err := server.NewServer("127.0.0.1", 17530).Run(); err != nil {
-			panic(err)
-		}
-		fmt.Println()
 	}
 }
 
 func main() {
 	if args.Server {
-		if err := server.NewServer("127.0.0.1", 17530).Run(); err != nil {
+		if err := server.NewServer(args.IP, args.Port, args.MaxClients).Run(); err != nil {
 			panic(err)
 		}
 		fmt.Println()
