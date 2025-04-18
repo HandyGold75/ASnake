@@ -554,14 +554,13 @@ func (game *Game) Start() error {
 
 	if game.Config.Connection != nil {
 		game.loopMulti()
-		return nil
-	}
-
-	for i := 0; i < game.Config.PeaStartCount; i++ {
-		game.SpawnPea()
-	}
-	for i := 1; !game.stopping; i++ {
-		game.loopSingle(i)
+	} else {
+		for i := 0; i < game.Config.PeaStartCount; i++ {
+			game.SpawnPea()
+		}
+		for i := 1; !game.stopping; i++ {
+			game.loopSingle(i)
+		}
 	}
 
 	fmt.Print("\033[0;0H\r\n" + string(game.Screen.CharMap[game.Objects.Wall]))
