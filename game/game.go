@@ -1,7 +1,7 @@
 package game
 
 import (
-	"ASnake/client/screen"
+	"ASnake/screen"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -277,9 +277,9 @@ func (game *Game) HandleInput(in []byte) {
 	} else if (slices.Equal(in, game.KeyBinds.ESC) || slices.Equal(in, game.KeyBinds.P)) && game.Config.Connection == nil {
 		paused = !paused
 		if paused {
-			game.Screen.H.RenderStringIf("Paused", 2, 2, game.Objects.Warning, func(val uint8) bool { return val < game.Objects.Player })
+			game.Screen.RenderStringIf("Paused", 2, 2, game.Objects.Warning, func(val uint8) bool { return val < game.Objects.Player })
 		} else {
-			game.Screen.H.RenderStringIf("Paused", 2, 2, game.Objects.Empty, func(val uint8) bool { return val < game.Objects.Player })
+			game.Screen.RenderStringIf("Paused", 2, 2, game.Objects.Empty, func(val uint8) bool { return val < game.Objects.Player })
 		}
 		game.Screen.Draw()
 		return
@@ -339,8 +339,8 @@ func (game *Game) UpdatePlayer(id string) {
 	if val == game.Objects.Player {
 		playerState.Crd = oldCords
 		playerState.IsGameOver = true
-		game.Screen.H.RenderString("Game", 2, 2, game.Objects.Warning)
-		game.Screen.H.RenderString("Over", 8, 8, game.Objects.Warning)
+		game.Screen.RenderString("Game", 2, 2, game.Objects.Warning)
+		game.Screen.RenderString("Over", 8, 8, game.Objects.Warning)
 
 		game.State.Players[id] = playerState
 		return
@@ -354,8 +354,8 @@ func (game *Game) UpdatePlayer(id string) {
 		playerState.TailCrds = append(playerState.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
 
 		game.State.PlusOneActive = true
-		game.Screen.H.RenderCordsIf(screen.Chars.Plus, 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
-		game.Screen.H.RenderCordsIf(screen.Chars.One, 8, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+		game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+		game.Screen.RenderCordsIf(screen.CharMap['1'], 8, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 
 	} else {
 		if len(playerState.TailCrds) > 0 {
@@ -424,8 +424,8 @@ func (game *Game) loopSingle(iteration int) {
 
 	if game.State.PlusOneActive && iteration%updateFramePlusOne == 0 {
 		game.State.PlusOneActive = false
-		game.Screen.H.RenderCordsIf(screen.Chars.Plus, 2, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
-		game.Screen.H.RenderCordsIf(screen.Chars.One, 8, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+		game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+		game.Screen.RenderCordsIf(screen.CharMap['1'], 8, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 	}
 
 	if iteration%updateFramePlayer == 0 {
@@ -499,11 +499,11 @@ func (game *Game) loopMulti() {
 		game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
 
 		if game.State.PlusOneActive {
-			game.Screen.H.RenderCordsIf(screen.Chars.Plus, 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
-			game.Screen.H.RenderCordsIf(screen.Chars.One, 8, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+			game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+			game.Screen.RenderCordsIf(screen.CharMap['1'], 8, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 		} else {
-			game.Screen.H.RenderCordsIf(screen.Chars.Plus, 2, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
-			game.Screen.H.RenderCordsIf(screen.Chars.One, 8, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+			game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
+			game.Screen.RenderCordsIf(screen.CharMap['1'], 8, 2, game.Objects.Empty, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
 		}
 
 		for _, peaCrd := range game.State.PeaCrds {
@@ -518,8 +518,8 @@ func (game *Game) loopMulti() {
 		}
 
 		if game.State.Players[game.Config.ClientId].IsGameOver {
-			game.Screen.H.RenderString("Game", 2, 2, game.Objects.Warning)
-			game.Screen.H.RenderString("Over", 8, 8, game.Objects.Warning)
+			game.Screen.RenderString("Game", 2, 2, game.Objects.Warning)
+			game.Screen.RenderString("Over", 8, 8, game.Objects.Warning)
 		}
 
 		if game.Config.LockFPSToTPS {
