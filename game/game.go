@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -19,17 +18,15 @@ import (
 )
 
 type (
-	Cord screen.Cord
-
 	keyBinds struct {
 		ESC, P,
 		CTRL_C, CTRL_D, Q,
 		W, D, S, A, K, L, J, H, UP, RIGHT, DOWN, LEFT []byte
 	}
 	Player struct {
-		Crd         Cord
+		Crd         [2]int
 		Dir, CurDir string
-		TailCrds    []Cord
+		TailCrds    [][2]int
 		IsGameOver  bool
 	}
 
@@ -43,7 +40,7 @@ type (
 	}
 	gameState struct {
 		Players       map[string]Player
-		PeaCrds       []Cord
+		PeaCrds       [][2]int
 		StartTime     time.Time
 		PlusOneActive bool
 		TpsTracker    int
@@ -56,11 +53,13 @@ type (
 		Config   gameConfig
 		State    gameState
 		Screen   *screen.Screen
+		stopping bool
+		paused   bool
 	}
 
 	UpdatePacket struct {
 		Players       map[string]Player
-		PeaCrds       []Cord
+		PeaCrds       [][2]int
 		PlusOneActive bool
 		TpsTracker    int
 	}
@@ -68,7 +67,7 @@ type (
 	FirstUpdatePacket struct {
 		ClientId      string
 		Players       map[string]Player
-		PeaCrds       []Cord
+		PeaCrds       [][2]int
 		StartTime     time.Time
 		PlusOneActive bool
 		TpsTracker    int
@@ -76,15 +75,17 @@ type (
 	}
 )
 
-var (
-	stopping = false
-	paused   = false
+const (
+	Reset string = "\033[0m"
 
-	originalTrm = &term.State{}
-	trm         = term.NewTerminal(struct {
-		io.Reader
-		io.Writer
-	}{}, "")
+	Black   string = "\033[30m"
+	Red     string = "\033[31m"
+	Green   string = "\033[32m"
+	Yellow  string = "\033[33m"
+	Blue    string = "\033[34m"
+	Magenta string = "\033[35m"
+	Cyan    string = "\033[36m"
+	White   string = "\033[37m"
 )
 
 func newGame() *Game {
@@ -112,151 +113,141 @@ func newGame() *Game {
 			TargetFPS:     60,
 			PlayerSpeed:   5,
 			PeaSpawnDelay: 5,
-			PeaSpawnLimit: 3,
-			PeaStartCount: 1,
+			PeaSpawnLimit: 4,
+			PeaStartCount: 2,
 			PlusOneDelay:  1,
 		},
 		State: gameState{
 			Players:       map[string]Player{},
-			PeaCrds:       []Cord{},
+			PeaCrds:       [][2]int{},
 			StartTime:     time.Now(),
 			PlusOneActive: false,
 			TpsTracker:    0,
 			FpsTracker:    0,
 		},
+		stopping: false,
+		paused:   false,
 	}
 }
 
-func NewClient(orgTrm *term.State) (*Game, error) {
+func NewClient() (*Game, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return &Game{}, errors.New("stdin/ stdout should be a terminal")
 	}
 
-	originalTrm = orgTrm
-	trm = term.NewTerminal(struct {
-		io.Reader
-		io.Writer
-	}{os.Stdin, os.Stdout}, "")
-
 	game := newGame()
-
-	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
+	ResetBytes := append([]byte("██"), Reset...)
 	scr, err := screen.NewScreen(2560, 1440, false, map[uint8][]byte{
-		game.Objects.Default: append(trm.Escape.Magenta, ResetBytes...),
+		game.Objects.Default: append([]byte(Magenta), ResetBytes...),
 		game.Objects.Empty:   []byte("  "),
-		game.Objects.Wall:    append(trm.Escape.Black, ResetBytes...),
-		game.Objects.PlusOne: append(trm.Escape.Green, ResetBytes...),
-		game.Objects.Warning: append(trm.Escape.Red, ResetBytes...),
-		game.Objects.Pea:     append(trm.Escape.Yellow, ResetBytes...),
-		game.Objects.Player:  append(trm.Escape.White, ResetBytes...),
-	}, trm)
+		game.Objects.Wall:    append([]byte(Black), ResetBytes...),
+		game.Objects.PlusOne: append([]byte(Green), ResetBytes...),
+		game.Objects.Warning: append([]byte(Red), ResetBytes...),
+		game.Objects.Pea:     append([]byte(Yellow), ResetBytes...),
+		game.Objects.Player:  append([]byte(White), ResetBytes...),
+	})
 	if err != nil {
 		return &Game{}, err
 	}
 	game.Screen = scr
 
 	game.State.Players = map[string]Player{"0": {
-		Crd: Cord{X: int(game.Screen.CurX / 2), Y: int(game.Screen.CurY / 2)},
+		Crd: [2]int{int(game.Screen.CurX / 2), int(game.Screen.CurY / 2)},
 		Dir: "right", CurDir: "right",
-		TailCrds: []Cord{},
+		TailCrds: [][2]int{},
 	}}
 
 	for i := 0; i <= game.Screen.CurX; i++ {
-		game.Screen.SetCol(i, game.Objects.Empty)
+		_ = game.Screen.SetCol(i, game.Objects.Empty)
 	}
-
-	game.Screen.SetCol(0, game.Objects.Wall)
-	game.Screen.SetRow(0, game.Objects.Wall)
-	game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
-	game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
-
-	game.Screen.SetColRow(game.State.Players[game.Config.ClientId].Crd.X, game.State.Players[game.Config.ClientId].Crd.Y, game.Objects.Player)
+	_ = game.Screen.SetCol(0, game.Objects.Wall)
+	_ = game.Screen.SetRow(0, game.Objects.Wall)
+	_ = game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+	_ = game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
+	_ = game.Screen.SetColRow(game.State.Players[game.Config.ClientId].Crd[0], game.State.Players[game.Config.ClientId].Crd[1], game.Objects.Player)
 
 	game.Screen.OnResizeCallback = func(scr *screen.Screen) {
 		for i := 0; i <= game.Screen.CurX; i++ {
-			game.Screen.SetCol(i, game.Objects.Empty)
+			_ = game.Screen.SetCol(i, game.Objects.Empty)
 		}
 		for i := 0; i <= game.Screen.CurY; i++ {
-			game.Screen.SetRow(i, game.Objects.Empty)
+			_ = game.Screen.SetRow(i, game.Objects.Empty)
 		}
 
-		scr.SetColRow(game.State.Players[game.Config.ClientId].Crd.X, game.State.Players[game.Config.ClientId].Crd.Y, game.Objects.Player)
+		_ = scr.SetColRow(game.State.Players[game.Config.ClientId].Crd[0], game.State.Players[game.Config.ClientId].Crd[1], game.Objects.Player)
 
 		for _, cord := range game.State.Players[game.Config.ClientId].TailCrds {
-			scr.SetColRow(cord.X, cord.Y, game.Objects.Player)
+			_ = scr.SetColRow(cord[0], cord[1], game.Objects.Player)
 		}
-
 		for _, cord := range game.State.PeaCrds {
-			scr.SetColRow(cord.X, cord.Y, game.Objects.Pea)
+			_ = scr.SetColRow(cord[0], cord[1], game.Objects.Pea)
 		}
 	}
 
 	return game, nil
 }
 
-func NewServer() (*Game, error) {
+func NewServer(maxClients int) (*Game, error) {
 	game := newGame()
-
-	ResetBytes := append([]byte("██"), trm.Escape.Reset...)
+	ResetBytes := append([]byte("██"), Reset...)
 	scr, err := screen.NewScreen(50, 50, true, map[uint8][]byte{
-		game.Objects.Default: append(trm.Escape.Magenta, ResetBytes...),
+		game.Objects.Default: append([]byte(Magenta), ResetBytes...),
 		game.Objects.Empty:   []byte("  "),
-		game.Objects.Wall:    append(trm.Escape.Black, ResetBytes...),
-		game.Objects.PlusOne: append(trm.Escape.Green, ResetBytes...),
-		game.Objects.Warning: append(trm.Escape.Red, ResetBytes...),
-		game.Objects.Pea:     append(trm.Escape.Yellow, ResetBytes...),
-		game.Objects.Player:  append(trm.Escape.White, ResetBytes...),
-	}, trm)
+		game.Objects.Wall:    append([]byte(Black), ResetBytes...),
+		game.Objects.PlusOne: append([]byte(Green), ResetBytes...),
+		game.Objects.Warning: append([]byte(Red), ResetBytes...),
+		game.Objects.Pea:     append([]byte(Yellow), ResetBytes...),
+		game.Objects.Player:  append([]byte(White), ResetBytes...),
+	})
 	if err != nil {
 		return &Game{}, err
 	}
 	game.Screen = scr
 
 	for i := 1; i < game.Screen.CurX; i++ {
-		game.Screen.SetRow(i, game.Objects.Empty)
+		_ = game.Screen.SetRow(i, game.Objects.Empty)
 	}
+	_ = game.Screen.SetCol(0, game.Objects.Wall)
+	_ = game.Screen.SetRow(0, game.Objects.Wall)
+	_ = game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+	_ = game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
 
-	game.Screen.SetCol(0, game.Objects.Wall)
-	game.Screen.SetRow(0, game.Objects.Wall)
-	game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
-	game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
-
-	game.Config.PeaSpawnDelay = 3
-	game.Config.PeaSpawnLimit = 12
-	game.Config.PeaStartCount = 4
+	game.Config.PeaSpawnDelay = max(1, 5-maxClients)
+	game.Config.PeaSpawnLimit = 4 * maxClients
+	game.Config.PeaStartCount = 2 * maxClients
 
 	return game, nil
 }
 
 func (game *Game) statsBar() {
-	timeDiff := time.Now().Sub(game.State.StartTime)
+	timeDiff := time.Since(game.State.StartTime)
 	timeStr := fmt.Sprintf("%02d:%02d:%02d:%03d", int(timeDiff.Hours()), int(timeDiff.Minutes())%60, int(timeDiff.Seconds())%60, int(timeDiff.Milliseconds())%1000)
 
 	sizeXColor := ""
 	if game.Config.Connection != nil && game.Screen.CurX < game.Screen.MaxX {
-		sizeXColor = string(trm.Escape.Red)
+		sizeXColor = Red
 	}
 	sizeYColor := ""
 	if game.Config.Connection != nil && game.Screen.CurY < game.Screen.MaxY {
-		sizeYColor = string(trm.Escape.Red)
+		sizeYColor = Red
 	}
 
 	fpsColor := ""
 	if !game.Config.LockFPSToTPS && game.State.FpsTracker < game.Config.TargetFPS-(game.Config.TargetFPS/5) {
-		fpsColor = string(trm.Escape.Red)
+		fpsColor = Red
 	}
 	tpsColor := ""
 	if game.State.TpsTracker < game.Config.TargetTPS {
-		tpsColor = string(trm.Escape.Red)
+		tpsColor = Red
 	}
 
 	msg := fmt.Sprintf("Time: %v   Peas: %v   Size: %vx %vy   FPS: %v   TPS: %v ",
 		timeStr,
 		len(game.State.Players[game.Config.ClientId].TailCrds),
-		sizeXColor+strconv.Itoa(game.Screen.CurX)+string(trm.Escape.Reset),
-		sizeYColor+strconv.Itoa(game.Screen.CurY)+string(trm.Escape.Reset),
-		fpsColor+strconv.Itoa(game.State.FpsTracker)+string(trm.Escape.Reset),
-		tpsColor+strconv.Itoa(game.State.TpsTracker)+string(trm.Escape.Reset),
+		sizeXColor+strconv.Itoa(game.Screen.CurX)+Reset,
+		sizeYColor+strconv.Itoa(game.Screen.CurY)+Reset,
+		fpsColor+strconv.Itoa(game.State.FpsTracker)+Reset,
+		tpsColor+strconv.Itoa(game.State.TpsTracker)+Reset,
 	)
 
 	if len([]rune(msg)) > game.Screen.CurX*2 {
@@ -266,71 +257,76 @@ func (game *Game) statsBar() {
 	}
 }
 
-func (game *Game) HandleInput(in []byte) {
+func (game *Game) HandleInput(in []byte) error {
 	playerState := game.State.Players[game.Config.ClientId]
 	if slices.Equal(in, game.KeyBinds.CTRL_C) || slices.Equal(in, game.KeyBinds.CTRL_D) || slices.Equal(in, game.KeyBinds.Q) {
-		stopping = true
-		return
+		game.stopping = true
+		return nil
 
 	} else if playerState.IsGameOver {
-		return
+		return nil
 	} else if (slices.Equal(in, game.KeyBinds.ESC) || slices.Equal(in, game.KeyBinds.P)) && game.Config.Connection == nil {
-		paused = !paused
-		if paused {
+		game.paused = !game.paused
+		if game.paused {
 			game.Screen.RenderStringIf("Paused", 2, 2, game.Objects.Warning, func(val uint8) bool { return val < game.Objects.Player })
 		} else {
 			game.Screen.RenderStringIf("Paused", 2, 2, game.Objects.Empty, func(val uint8) bool { return val < game.Objects.Player })
 		}
-		game.Screen.Draw()
-		return
+		err := game.Screen.Draw()
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	dir := playerState.Dir
-	if !paused && playerState.CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.UP)) {
+	if !game.paused && playerState.CurDir != "down" && (slices.Equal(in, game.KeyBinds.W) || slices.Equal(in, game.KeyBinds.K) || slices.Equal(in, game.KeyBinds.UP)) {
 		dir = "up"
-	} else if !paused && playerState.CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.RIGHT)) {
+	} else if !game.paused && playerState.CurDir != "left" && (slices.Equal(in, game.KeyBinds.D) || slices.Equal(in, game.KeyBinds.L) || slices.Equal(in, game.KeyBinds.RIGHT)) {
 		dir = "right"
-	} else if !paused && playerState.CurDir != "up" && (slices.Equal(in, game.KeyBinds.S) || slices.Equal(in, game.KeyBinds.J) || slices.Equal(in, game.KeyBinds.DOWN)) {
+	} else if !game.paused && playerState.CurDir != "up" && (slices.Equal(in, game.KeyBinds.S) || slices.Equal(in, game.KeyBinds.J) || slices.Equal(in, game.KeyBinds.DOWN)) {
 		dir = "down"
-	} else if !paused && playerState.CurDir != "right" && (slices.Equal(in, game.KeyBinds.A) || slices.Equal(in, game.KeyBinds.H) || slices.Equal(in, game.KeyBinds.LEFT)) {
+	} else if !game.paused && playerState.CurDir != "right" && (slices.Equal(in, game.KeyBinds.A) || slices.Equal(in, game.KeyBinds.H) || slices.Equal(in, game.KeyBinds.LEFT)) {
 		dir = "left"
 	}
 
 	if game.Config.Connection != nil {
-		game.Config.Connection.Write([]byte(dir + "\n"))
-		return
+		_, err := game.Config.Connection.Write([]byte(dir + "\n"))
+		return err
 	}
 
 	playerState.Dir = dir
 	game.State.Players[game.Config.ClientId] = playerState
+	return nil
 }
 
 func (game *Game) UpdatePlayer(id string) {
 	playerState := game.State.Players[id]
 
 	oldCords := playerState.Crd
-	if playerState.Dir == "up" {
-		playerState.Crd.Y -= 1
-	} else if playerState.Dir == "right" {
-		playerState.Crd.X += 1
-	} else if playerState.Dir == "down" {
-		playerState.Crd.Y += 1
-	} else if playerState.Dir == "left" {
-		playerState.Crd.X -= 1
+	switch playerState.Dir {
+	case "up":
+		playerState.Crd[1] -= 1
+	case "right":
+		playerState.Crd[0] += 1
+	case "down":
+		playerState.Crd[1] += 1
+	case "left":
+		playerState.Crd[0] -= 1
 	}
 	playerState.CurDir = playerState.Dir
 
-	if playerState.Crd.X <= 0 {
-		playerState.Crd.X = game.Screen.CurX - 1
-	} else if playerState.Crd.X >= game.Screen.CurX {
-		playerState.Crd.X = 1
-	} else if playerState.Crd.Y <= 0 {
-		playerState.Crd.Y = game.Screen.CurY - 1
-	} else if playerState.Crd.Y >= game.Screen.CurY {
-		playerState.Crd.Y = 1
+	if playerState.Crd[0] <= 0 {
+		playerState.Crd[0] = game.Screen.CurX - 1
+	} else if playerState.Crd[0] >= game.Screen.CurX {
+		playerState.Crd[0] = 1
+	} else if playerState.Crd[1] <= 0 {
+		playerState.Crd[1] = game.Screen.CurY - 1
+	} else if playerState.Crd[1] >= game.Screen.CurY {
+		playerState.Crd[1] = 1
 	}
 
-	val, err := game.Screen.GetColRow(playerState.Crd.X, playerState.Crd.Y)
+	val, err := game.Screen.GetColRow(playerState.Crd[0], playerState.Crd[1])
 	if err != nil {
 		game.State.Players[id] = playerState
 		return
@@ -347,11 +343,11 @@ func (game *Game) UpdatePlayer(id string) {
 	}
 
 	if val == game.Objects.Pea {
-		game.State.PeaCrds = slices.DeleteFunc(game.State.PeaCrds, func(cord Cord) bool {
-			return cord == Cord{X: playerState.Crd.X, Y: playerState.Crd.Y}
+		game.State.PeaCrds = slices.DeleteFunc(game.State.PeaCrds, func(cord [2]int) bool {
+			return cord == playerState.Crd
 		})
 
-		playerState.TailCrds = append(playerState.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
+		playerState.TailCrds = append(playerState.TailCrds, oldCords)
 
 		game.State.PlusOneActive = true
 		game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
@@ -359,46 +355,26 @@ func (game *Game) UpdatePlayer(id string) {
 
 	} else {
 		if len(playerState.TailCrds) > 0 {
-			playerState.TailCrds = append(playerState.TailCrds, Cord{X: oldCords.X, Y: oldCords.Y})
+			playerState.TailCrds = append(playerState.TailCrds, oldCords)
 			oldCords = playerState.TailCrds[0]
 			playerState.TailCrds = slices.Delete(playerState.TailCrds, 0, 1)
 		}
-		game.Screen.SetColRow(oldCords.X, oldCords.Y, game.Objects.Empty)
+		_ = game.Screen.SetColRow(oldCords[0], oldCords[1], game.Objects.Empty)
 	}
 
-	game.Screen.SetColRow(playerState.Crd.X, playerState.Crd.Y, game.Objects.Player)
+	_ = game.Screen.SetColRow(playerState.Crd[0], playerState.Crd[1], game.Objects.Player)
 	game.State.Players[id] = playerState
 }
 
 func (game *Game) SpawnPea() {
 	for i := 1; i < 100; i++ {
-		cord := Cord{X: rand.IntN(game.Screen.CurX-1) + 1, Y: rand.IntN(game.Screen.CurY-1) + 1}
-		val, _ := game.Screen.GetColRow(cord.X, cord.Y)
+		cord := [2]int{rand.IntN(game.Screen.CurX-1) + 1, rand.IntN(game.Screen.CurY-1) + 1}
+		val, _ := game.Screen.GetColRow(cord[0], cord[1])
 		if val == game.Objects.Empty {
 			game.State.PeaCrds = append(game.State.PeaCrds, cord)
-			game.Screen.SetColRow(cord.X, cord.Y, game.Objects.Pea)
+			_ = game.Screen.SetColRow(cord[0], cord[1], game.Objects.Pea)
 			break
 		}
-	}
-}
-
-// TODO: Stop render updates during game updates and vice virsa due to possible race condition.
-// Error: `fatal error: concurrent map read and map write`
-// Repeatable when using high TargetTPS and/ or TargetFPS.
-func (game *Game) loopRender() {
-	defer func() { stopping = true; term.Restore(int(os.Stdin.Fd()), originalTrm) }()
-
-	for !stopping {
-		t := time.Now()
-
-		game.Screen.Draw()
-		time.Sleep((time.Second / time.Duration(game.Config.TargetFPS)) - time.Now().Sub(t))
-
-		game.State.FpsTracker = int(time.Second/time.Now().Sub(t)) + 1
-		if !game.State.Players[game.Config.ClientId].IsGameOver {
-			game.statsBar()
-		}
-
 	}
 }
 
@@ -409,12 +385,12 @@ func (game *Game) loopSingle(iteration int) {
 	updateFramePea := max(1, game.Config.PeaSpawnDelay*game.Config.TargetTPS)
 	updateFramePlusOne := max(1, game.Config.PlusOneDelay*game.Config.TargetTPS)
 
-	if paused || game.State.Players[game.Config.ClientId].IsGameOver {
-		time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Now().Sub(t))
-		game.State.TpsTracker = int(time.Second/time.Now().Sub(t)) + 1
-		game.State.StartTime = game.State.StartTime.Add(time.Now().Sub(t))
+	if game.paused || game.State.Players[game.Config.ClientId].IsGameOver {
+		time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Since(t))
+		game.State.TpsTracker = int(time.Second/time.Since(t)) + 1
+		game.State.StartTime = game.State.StartTime.Add(time.Since(t))
 
-		if paused && game.Config.LockFPSToTPS {
+		if game.paused && game.Config.LockFPSToTPS {
 			game.State.FpsTracker = game.State.TpsTracker
 			game.statsBar()
 
@@ -429,17 +405,17 @@ func (game *Game) loopSingle(iteration int) {
 	}
 
 	if iteration%updateFramePlayer == 0 {
-		game.Screen.SetCol(0, game.Objects.Wall)
-		game.Screen.SetRow(0, game.Objects.Wall)
-		game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
-		game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
+		_ = game.Screen.SetCol(0, game.Objects.Wall)
+		_ = game.Screen.SetRow(0, game.Objects.Wall)
+		_ = game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+		_ = game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
 
 		game.UpdatePlayer("0")
 	}
 
 	if iteration%updateFramePea == 0 {
-		game.State.PeaCrds = slices.DeleteFunc(game.State.PeaCrds, func(cord Cord) bool {
-			val, err := game.Screen.GetColRow(cord.X, cord.Y)
+		game.State.PeaCrds = slices.DeleteFunc(game.State.PeaCrds, func(cord [2]int) bool {
+			val, err := game.Screen.GetColRow(cord[0], cord[1])
 			return err != nil || val != game.Objects.Pea
 		})
 
@@ -449,23 +425,23 @@ func (game *Game) loopSingle(iteration int) {
 	}
 
 	if game.Config.LockFPSToTPS {
-		game.Screen.Draw()
+		_ = game.Screen.Draw()
 
-		time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Now().Sub(t))
-		game.State.TpsTracker = int(time.Second/time.Now().Sub(t)) + 1
+		time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Since(t))
+		game.State.TpsTracker = int(time.Second/time.Since(t)) + 1
 
 		game.State.FpsTracker = game.State.TpsTracker
 		game.statsBar()
 		return
 	}
 
-	time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Now().Sub(t))
-	game.State.TpsTracker = int(time.Second/time.Now().Sub(t)) + 1
+	time.Sleep((time.Second / time.Duration(game.Config.TargetTPS)) - time.Since(t))
+	game.State.TpsTracker = int(time.Second/time.Since(t)) + 1
 }
 
 func (game *Game) loopMulti() {
 	reader := bufio.NewReader(game.Config.Connection)
-	for !stopping {
+	for !game.stopping {
 		msg, err := reader.ReadString('\n')
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
@@ -487,16 +463,16 @@ func (game *Game) loopMulti() {
 		game.State.TpsTracker = update.TpsTracker
 
 		for i := 0; i <= game.Screen.CurX; i++ {
-			game.Screen.SetCol(i, game.Objects.Empty)
+			_ = game.Screen.SetCol(i, game.Objects.Empty)
 		}
 		for i := 0; i <= game.Screen.CurY; i++ {
-			game.Screen.SetRow(i, game.Objects.Empty)
+			_ = game.Screen.SetRow(i, game.Objects.Empty)
 		}
 
-		game.Screen.SetCol(0, game.Objects.Wall)
-		game.Screen.SetRow(0, game.Objects.Wall)
-		game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
-		game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
+		_ = game.Screen.SetCol(0, game.Objects.Wall)
+		_ = game.Screen.SetRow(0, game.Objects.Wall)
+		_ = game.Screen.SetCol(game.Screen.CurX, game.Objects.Wall)
+		_ = game.Screen.SetRow(game.Screen.CurY, game.Objects.Wall)
 
 		if game.State.PlusOneActive {
 			game.Screen.RenderCordsIf(screen.CharMap['+'], 2, 2, game.Objects.PlusOne, func(val uint8) bool { return val == game.Objects.Empty || val == game.Objects.PlusOne })
@@ -507,13 +483,13 @@ func (game *Game) loopMulti() {
 		}
 
 		for _, peaCrd := range game.State.PeaCrds {
-			game.Screen.SetColRow(peaCrd.X, peaCrd.Y, game.Objects.Pea)
+			_ = game.Screen.SetColRow(peaCrd[0], peaCrd[1], game.Objects.Pea)
 		}
 
 		for _, player := range game.State.Players {
-			game.Screen.SetColRow(player.Crd.X, player.Crd.Y, game.Objects.Player)
+			_ = game.Screen.SetColRow(player.Crd[0], player.Crd[1], game.Objects.Player)
 			for _, tailCrd := range player.TailCrds {
-				game.Screen.SetColRow(tailCrd.X, tailCrd.Y, game.Objects.Player)
+				_ = game.Screen.SetColRow(tailCrd[0], tailCrd[1], game.Objects.Player)
 			}
 		}
 
@@ -523,7 +499,7 @@ func (game *Game) loopMulti() {
 		}
 
 		if game.Config.LockFPSToTPS {
-			game.Screen.Draw()
+			_ = game.Screen.Draw()
 
 			game.State.FpsTracker = game.State.TpsTracker
 			game.statsBar()
@@ -531,37 +507,66 @@ func (game *Game) loopMulti() {
 	}
 }
 
-func (game *Game) loop() {
-	game.State.StartTime = time.Now()
+func (game *Game) Start() error {
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return err
+	}
 
+	go func() {
+		defer term.Restore(int(os.Stdin.Fd()), oldState)
+		for {
+			in := make([]byte, 3)
+			_, err := os.Stdin.Read(in)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			err = game.HandleInput(in)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+	}()
+
+	game.State.StartTime = time.Now()
 	if !game.Config.LockFPSToTPS {
-		go game.loopRender()
+		// TODO: Stop render updates during game updates and vice virsa due to possible race condition.
+		// Error: `fatal error: concurrent map read and map write`
+		// Repeatable when using high TargetTPS and/ or TargetFPS.
+		go func() {
+			defer func() { game.stopping = true; _ = term.Restore(int(os.Stdin.Fd()), oldState) }()
+			for !game.stopping {
+				t := time.Now()
+
+				_ = game.Screen.Draw()
+				time.Sleep((time.Second / time.Duration(game.Config.TargetFPS)) - time.Since(t))
+
+				game.State.FpsTracker = int(time.Second/time.Since(t)) + 1
+				if !game.State.Players[game.Config.ClientId].IsGameOver {
+					game.statsBar()
+				}
+
+			}
+		}()
 	}
 
 	if game.Config.Connection != nil {
 		game.loopMulti()
-		return
+		return nil
 	}
 
-	for i := 1; !stopping; i++ {
-		game.loopSingle(i)
-	}
-}
-
-func (game *Game) Start() error {
 	for i := 0; i < game.Config.PeaStartCount; i++ {
 		game.SpawnPea()
 	}
-
-	game.loop()
+	for i := 1; !game.stopping; i++ {
+		game.loopSingle(i)
+	}
 
 	fmt.Print("\033[0;0H\r\n" + string(game.Screen.CharMap[game.Objects.Wall]))
-
-	return nil
-}
-
-func (game *Game) Close() {
 	if game.Config.Connection != nil {
-		game.Config.Connection.Close()
+		_ = game.Config.Connection.Close()
 	}
+	return nil
 }
