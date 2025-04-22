@@ -399,9 +399,8 @@ func (pool *Pool) start() {
 			}
 		}
 
-		nowDiff := time.Since(now)
-		time.Sleep((time.Second / time.Duration(pool.Game.Config.TargetTPS)) - nowDiff)
-		pool.Game.State.TpsTracker = int(time.Second/nowDiff) + 1
+		time.Sleep((time.Second / time.Duration(pool.Game.Config.TargetTPS)) - time.Since(now))
+		pool.Game.State.TpsTracker = int(time.Second/time.Since(now)) + 1
 	}
 }
 
