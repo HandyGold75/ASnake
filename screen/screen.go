@@ -204,12 +204,10 @@ func (f *Screen) Reload() error {
 	if err != nil {
 		return err
 	}
-	f.CurX = min(int(x/2)-1, f.MaxX)
-	f.CurY = min(y-2, f.MaxY)
 
+	f.CurX, f.CurY = min(int(x/2)-1, f.MaxX), min(y-2, f.MaxY)
 	if f.ForceMax {
-		f.CurX = f.MaxX
-		f.CurY = f.MaxY
+		f.CurX, f.CurY = f.MaxX, f.MaxY
 	}
 
 	f.Rows = [][]uint8{}
@@ -221,29 +219,20 @@ func (f *Screen) Reload() error {
 }
 
 func (f *Screen) Draw() error {
-	if f.OnResizeCallback != nil {
+	if !f.ForceMax {
 		x, y, err := term.GetSize(int(os.Stdin.Fd()))
 		if err != nil {
 			return err
 		}
 
 		if f.CurX != min(int(x/2)-1, f.MaxX) || f.CurY != min(y-2, f.MaxY) {
-			f.CurX = min(int(x/2)-1, f.MaxX)
-			f.CurY = min(y-2, f.MaxY)
-
-			if f.ForceMax {
-				f.CurX = f.MaxX
-				f.CurY = f.MaxY
-			}
+			f.CurX, f.CurY = min(int(x/2)-1, f.MaxX), min(y-2, f.MaxY)
 
 			f.Rows = [][]uint8{}
 			for i := 0; i <= f.CurY; i++ {
 				f.Rows = append(f.Rows, make([]uint8, f.CurX+1))
 			}
 
-			if _, err := f.Terminal.Write([]byte("\033[2J")); err != nil {
-				return err
-			}
 			f.OnResizeCallback(f)
 		}
 	}

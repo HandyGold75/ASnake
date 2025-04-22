@@ -31,12 +31,12 @@ func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
 	sp := mm.Menu.NewMenu("SinglePlayer")
 	sp.NewAction("Start", func() { mode = "singleplayer" })
 	spLockFPSToTPS := sp.NewList("Low Performance", []string{"No", "Yes"})
-	spTargetTPS := sp.NewDigit("Target TPS", 0, 30, 99999)
-	spTargetFPS := sp.NewDigit("Target FPS", 0, 60, 99999)
-	spPlayerSpeed := sp.NewDigit("Player Speed", 0, 5, 99999)
-	spPeaSpawnDelay := sp.NewDigit("Spawn Delay", 0, 5, 99999)
-	spPeaSpawnLimit := sp.NewDigit("Spawn Limit", 0, 3, 99999)
-	spPeaStartCount := sp.NewDigit("Spawn Count", 0, 1, 99999)
+	spTargetTPS := sp.NewDigit("Target TPS", 30, 0, 99999)
+	spTargetFPS := sp.NewDigit("Target FPS", 60, 0, 99999)
+	spPlayerSpeed := sp.NewDigit("Player Speed", 5, 0, 99999)
+	spPeaSpawnDelay := sp.NewDigit("Spawn Delay", 5, 0, 99999)
+	spPeaSpawnLimit := sp.NewDigit("Spawn Limit", 3, 0, 99999)
+	spPeaStartCount := sp.NewDigit("Spawn Count", 1, 0, 99999)
 
 	mp := mm.Menu.NewMenu("MultiPlayer")
 	mp.NewAction("Connect", func() { mode = "multiplayer" })
@@ -139,19 +139,18 @@ func connect(gm *game.Game, ip string) error {
 	}
 
 	gm.Config.ClientId = update.ClientId
-	gm.State.Players = update.Players
-	gm.State.PeaCrds = update.PeaCrds
-	gm.State.StartTime = update.StartTime
-	gm.State.PlusOneActive = update.PlusOneActive
-	gm.State.TpsTracker = update.TpsTracker
-	gm.Screen.MaxX = update.CurX
-	gm.Screen.MaxY = update.CurY
+	gm.StartTime = update.StartTime
+	gm.Screen.MaxX, gm.Screen.MaxY = update.MaxX, update.MaxY
+	gm.State.Players = update.State.Players
+	gm.State.PeaCrds = update.State.PeaCrds
+	gm.State.PlusOneActive = update.State.PlusOneActive
+	gm.State.TpsTracker = update.State.TpsTracker
 
 	return nil
 }
 
 func Run() {
-	gm, err := game.NewClient()
+	gm, err := game.NewGame(false)
 	if err != nil {
 		panic(err)
 	}

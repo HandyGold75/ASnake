@@ -149,10 +149,14 @@ func (sv *Server) Run() error {
 }
 
 func NewPool(maxClients int, lgr *logger.Logger) (*Pool, error) {
-	gm, err := game.NewServer(maxClients)
+	gm, err := game.NewGame(true)
 	if err != nil {
 		return &Pool{}, err
 	}
+
+	gm.Config.PeaSpawnDelay = max(1, 5-maxClients)
+	gm.Config.PeaSpawnLimit = 4 * maxClients
+	gm.Config.PeaStartCount = 2 * maxClients
 
 	p := &Pool{
 		Clients: map[string]*net.Conn{},
@@ -185,7 +189,7 @@ func (pool *Pool) AddClient(con *net.Conn) {
 			for y := -2; y < 3; y++ {
 				for x := -2; x < 3; x++ {
 					val, _ := pool.Game.Screen.GetColRow(cord[0]+x, cord[1]+y)
-					if val != pool.Game.Objects.Empty && val != pool.Game.Objects.PlusOne {
+					if val != game.ObjEmpty && val != game.ObjPlusOne {
 						valid = false
 						break
 					}
@@ -211,13 +215,15 @@ func (pool *Pool) AddClient(con *net.Conn) {
 		}
 
 		update := game.FirstUpdatePacket{
-			ClientId:      id,
-			Players:       pool.Game.State.Players,
-			PeaCrds:       pool.Game.State.PeaCrds,
-			StartTime:     pool.Game.State.StartTime,
-			PlusOneActive: pool.Game.State.PlusOneActive,
-			TpsTracker:    pool.Game.State.TpsTracker,
-			CurX:          pool.Game.Screen.CurX, CurY: pool.Game.Screen.CurY,
+			ClientId:  id,
+			StartTime: pool.Game.StartTime,
+			MaxX:      pool.Game.Screen.MaxX, MaxY: pool.Game.Screen.MaxY,
+			State: game.GameState{
+				Players:       pool.Game.State.Players,
+				PeaCrds:       pool.Game.State.PeaCrds,
+				PlusOneActive: pool.Game.State.PlusOneActive,
+				TpsTracker:    pool.Game.State.TpsTracker,
+			},
 		}
 		data, err := json.Marshal(update)
 		if err != nil {
@@ -287,6 +293,7 @@ func (pool *Pool) start() {
 
 	pool.Status = "starting"
 	pool.Game.State.Players = make(map[string]game.Player, len(pool.Clients))
+	pool.Game.StartTime = time.Now()
 
 	i := 0
 	for id, client := range pool.Clients {
@@ -304,13 +311,15 @@ func (pool *Pool) start() {
 		}
 
 		update := game.FirstUpdatePacket{
-			ClientId:      id,
-			Players:       pool.Game.State.Players,
-			PeaCrds:       pool.Game.State.PeaCrds,
-			StartTime:     pool.Game.State.StartTime,
-			PlusOneActive: pool.Game.State.PlusOneActive,
-			TpsTracker:    pool.Game.State.TpsTracker,
-			CurX:          pool.Game.Screen.CurX, CurY: pool.Game.Screen.CurY,
+			ClientId:  id,
+			StartTime: pool.Game.StartTime,
+			MaxX:      pool.Game.Screen.MaxX, MaxY: pool.Game.Screen.MaxY,
+			State: game.GameState{
+				Players:       pool.Game.State.Players,
+				PeaCrds:       pool.Game.State.PeaCrds,
+				PlusOneActive: pool.Game.State.PlusOneActive,
+				TpsTracker:    pool.Game.State.TpsTracker,
+			},
 		}
 		data, err := json.Marshal(update)
 		if err != nil {
@@ -328,7 +337,6 @@ func (pool *Pool) start() {
 		pool.Game.SpawnPea()
 	}
 
-	pool.Game.State.StartTime = time.Now()
 	pool.Status = "started"
 
 	updateFramePlayer := max(1, pool.Game.Config.TargetTPS/pool.Game.Config.PlayerSpeed)
@@ -336,7 +344,7 @@ func (pool *Pool) start() {
 	updateFramePlusOne := max(1, pool.Game.Config.PlusOneDelay*pool.Game.Config.TargetTPS)
 
 	for i := 1; pool.Status == "started"; i++ {
-		t := time.Now()
+		now := time.Now()
 		doSend := false
 
 		if i%updateFramePlayer == 0 {
@@ -362,7 +370,7 @@ func (pool *Pool) start() {
 			doSend = true
 			pool.Game.State.PeaCrds = slices.DeleteFunc(pool.Game.State.PeaCrds, func(cord [2]int) bool {
 				val, err := pool.Game.Screen.GetColRow(cord[0], cord[1])
-				return err != nil || val != pool.Game.Objects.Pea
+				return err != nil || val != game.ObjPea
 			})
 
 			if len(pool.Game.State.PeaCrds) < pool.Game.Config.PeaSpawnLimit {
@@ -371,7 +379,7 @@ func (pool *Pool) start() {
 		}
 
 		if doSend {
-			update := game.UpdatePacket{
+			update := game.GameState{
 				Players:       pool.Game.State.Players,
 				PeaCrds:       pool.Game.State.PeaCrds,
 				PlusOneActive: pool.Game.State.PlusOneActive,
@@ -391,8 +399,9 @@ func (pool *Pool) start() {
 			}
 		}
 
-		time.Sleep((time.Second / time.Duration(pool.Game.Config.TargetTPS)) - time.Since(t))
-		pool.Game.State.TpsTracker = int(time.Second/time.Since(t)) + 1
+		nowDiff := time.Since(now)
+		time.Sleep((time.Second / time.Duration(pool.Game.Config.TargetTPS)) - nowDiff)
+		pool.Game.State.TpsTracker = int(time.Second/nowDiff) + 1
 	}
 }
 
