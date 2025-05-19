@@ -30,22 +30,23 @@ type (
 		TailCrds    [][2]int
 		IsGameOver  bool
 	}
-	GameState struct {
-		Players       map[string]Player
-		PeaCrds       [][2]int
-		PlusOneActive bool
-		TpsTracker    int
-	}
-	gameConfig struct {
+
+	GameConfig struct {
 		LockFPSToTPS                                                           bool
 		Connection                                                             net.Conn
 		ClientId                                                               string
 		TargetTPS, TargetFPS                                                   int
 		PlayerSpeed, PeaSpawnDelay, PeaSpawnLimit, PeaStartCount, PlusOneDelay int
 	}
+	GameState struct {
+		Players       map[string]Player
+		PeaCrds       [][2]int
+		PlusOneActive bool
+		TpsTracker    int
+	}
 	Game struct {
 		KeyBinds   keyBinds
-		Config     gameConfig
+		Config     GameConfig
 		State      GameState
 		Screen     *screen.Screen
 		StartTime  time.Time
@@ -114,7 +115,7 @@ func NewGame(headless bool) (*Game, error) {
 			K: []byte{107, 0, 0}, L: []byte{108, 0, 0}, J: []byte{106, 0, 0}, H: []byte{104, 0, 0},
 			UP: []byte{27, 91, 65}, RIGHT: []byte{27, 91, 67}, DOWN: []byte{27, 91, 66}, LEFT: []byte{27, 91, 68},
 		},
-		Config: gameConfig{
+		Config: GameConfig{
 			LockFPSToTPS:  false,
 			ClientId:      "0",
 			TargetTPS:     30,
