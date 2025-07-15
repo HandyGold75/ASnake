@@ -1,9 +1,9 @@
-github.com/HandyGold75/GOLib/argp v0.0.0-20250606135728-a6262879070c h1:6tBhC6zQVjVVpH7CG429+7CNPP/dfcpf+8YoUmQLrqg=
-github.com/HandyGold75/GOLib/argp v0.0.0-20250606135728-a6262879070c/go.mod h1:0XxIsyDYlBo+r0c+ilzwdAhye7Boi0Lu57Aj5kx15kw=
-github.com/HandyGold75/GOLib/logger v0.0.0-20250606135728-a6262879070c h1:/k83iy+yn0S3j7iVEl+z+1yGnGAfEYlqYCmmCLJ5Vzo=
-github.com/HandyGold75/GOLib/logger v0.0.0-20250606135728-a6262879070c/go.mod h1:022w5BuRxuHu6SRDtpWE2yQMi2rQglX2dK+C84R6qMU=
-github.com/HandyGold75/GOLib/tui v0.0.0-20250606135728-a6262879070c h1:la54iZ4HWgCm/NgCNkxDYuKZdwVvSEHJUEyuv4kl8BE=
-github.com/HandyGold75/GOLib/tui v0.0.0-20250606135728-a6262879070c/go.mod h1:0/9ouqZKecyIU8gGdtm+GwbEaM2gH5PXQjko61g9PHU=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250714120334-88b1e2772e47 h1:bRU12mvYcN6axZEOhht6MThIWry68v3482O/yW/A6HE=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250714120334-88b1e2772e47/go.mod h1:1P/nYT8+eSjETNcypZ6WgYv8PFlvtWDD31n7AgYRh7g=
+github.com/HandyGold75/GOLib/logger v0.0.0-20250714120334-88b1e2772e47 h1:BarE0SDdHJl1fK7nmT3mYvJ6qHv601PIpNt3jD8ZKQA=
+github.com/HandyGold75/GOLib/logger v0.0.0-20250714120334-88b1e2772e47/go.mod h1:tf5g//Qyks5PrmFrArW9htSs9RnxizlCe6ZArXztCFE=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250714120334-88b1e2772e47 h1:rWOvu2zdo0uAssaQbF3Ne56zmZpmnKKZn1BCdzvq5vw=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250714120334-88b1e2772e47/go.mod h1:qb6JEaBS52tzsmvwplB8jDol+NUJ92QlTfBGBDyVkZU=
 golang.org/x/sys v0.34.0 h1:H5Y5sJ2L2JRdyv7ROF1he/lPdvFsd0mJHFw2ThKHxLA=
 golang.org/x/sys v0.34.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
 golang.org/x/term v0.33.0 h1:NuFncQrRcaRvVmgRkvM3j/F00gWIAlcmlB8ACEKmGIg=
