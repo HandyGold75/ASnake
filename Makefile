@@ -13,8 +13,7 @@ build:
 	go build -o "$(TARGET)/$(FILE)" .
 
 run:
-	go build -o "$(TARGET)/$(FILE)" .
-	exec "$(TARGET)/$(FILE)"
+	go build -o "$(TARGET)/$(FILE)" . && exec "$(TARGET)/$(FILE)"
 
 clean:
 	rm -f "$(TARGET)/$(FILE)"
