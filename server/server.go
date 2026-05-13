@@ -37,7 +37,7 @@ type (
 
 func NewServer(ip string, port uint16, maxClients int) *Server {
 	lgr, _ := logger.NewRel("ASnake")
-	lgr.UseSeperators = false
+	lgr.UseSeparators = false
 	lgr.CharCountPerPart = 16
 
 	sv := &Server{
