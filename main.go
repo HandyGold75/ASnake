@@ -1,14 +1,15 @@
 package main
 
 import (
-	"ASnake/game"
-	"ASnake/server"
 	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
+
+	"ASnake/game"
+	"ASnake/server"
 
 	"github.com/HandyGold75/GOLib/argp"
 	"github.com/HandyGold75/GOLib/tui"
@@ -40,7 +41,7 @@ func mainMenu(gm *game.Game) (mode string, ipStr string, err error) {
 
 	mp := mm.Menu.NewMenu("MultiPlayer")
 	mp.NewAction("Connect", func() { mode = "multiplayer" })
-	mpIP := mp.NewIPv4("IP", "84.25.253.77")
+	mpIP := mp.NewIPv4("IP", "127.0.0.1")
 	mpPort := mp.NewDigit("Port", 17530, 0, 65535)
 
 	if err := mm.Run(); err != nil {

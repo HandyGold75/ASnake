@@ -1,7 +1,6 @@
 package server
 
 import (
-	"ASnake/game"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ASnake/game"
 
 	"github.com/HandyGold75/GOLib/logger"
 )

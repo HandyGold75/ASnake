@@ -1,7 +1,6 @@
 package game
 
 import (
-	"ASnake/screen"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ASnake/screen"
 
 	"golang.org/x/term"
 )

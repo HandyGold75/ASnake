@@ -4,7 +4,7 @@ github.com/HandyGold75/GOLib/logger v0.0.0-20260409103303-fbcc22cff3da h1:Wf91CS
 github.com/HandyGold75/GOLib/logger v0.0.0-20260409103303-fbcc22cff3da/go.mod h1:P4RUK178y25PxTwdr1fQ33meqsbkSQjHUgiNOmnkE0o=
 github.com/HandyGold75/GOLib/tui v0.0.0-20260409103303-fbcc22cff3da h1:718mdA/RsYWLyzTCO/SP1CFmJRr9nF2v8COvXWi036Q=
 github.com/HandyGold75/GOLib/tui v0.0.0-20260409103303-fbcc22cff3da/go.mod h1:S9MduBJmVoLXmBy8rdXQeqJa2lVEo14B7L9tE4hQBPA=
-golang.org/x/sys v0.44.0 h1:ildZl3J4uzeKP07r2F++Op7E9B29JRUy+a27EibtBTQ=
-golang.org/x/sys v0.44.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
+golang.org/x/sys v0.45.0 h1:dO4czNzziLiiXplLQgBCEpCvXQ3dnkn0SdaZSYdQ+FY=
+golang.org/x/sys v0.45.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 golang.org/x/term v0.43.0 h1:S4RLU2sB31O/NCl+zFN9Aru9A/Cq2aqKpTZJ6B+DwT4=
 golang.org/x/term v0.43.0/go.mod h1:lrhlHNdQJHO+1qVYiHfFKVuVioJIheAc3fBSMFYEIsk=
